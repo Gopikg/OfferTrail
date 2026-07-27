@@ -1,5 +1,6 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
+import { AuthProvider } from "./context/AuthContext";
 import "./index.css";
 import "./firebase";
 import auth from "./services/auth";
@@ -9,6 +10,8 @@ console.log(auth);
 
 createRoot(document.getElementById("root")).render(
   <StrictMode>
+    <AuthProvider>
     <App />
+    </AuthProvider>
   </StrictMode>
 );
