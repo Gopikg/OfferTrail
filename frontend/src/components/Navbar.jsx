@@ -13,28 +13,35 @@ function Navbar() {
     >
       <h2>OfferTrail</h2>
 
-      <div>
-        <Link
-          to="/"
-          style={{ color: "white", marginRight: "20px" }}
-        >
-          Home
-        </Link>
+  <div>
+  <Link
+    to="/"
+    style={{ color: "white", marginRight: "20px" }}
+  >
+    Home
+  </Link>
 
-        <Link
-          to="/login"
-          style={{ color: "white", marginRight: "20px" }}
-        >
-          Login
-        </Link>
+  <Link
+    to="/login"
+    style={{ color: "white", marginRight: "20px" }}
+  >
+    Login
+  </Link>
 
-        <Link
-          to="/register"
-          style={{ color: "white" }}
-        >
-          Register
-        </Link>
-      </div>
+  <Link
+    to="/register"
+    style={{ color: "white", marginRight: "20px" }}
+  >
+    Register
+  </Link>
+
+  <Link
+    to="/applications/new"
+    style={{ color: "white" }}
+  >
+    Add Application
+  </Link>
+</div>
     </nav>
   );
 }

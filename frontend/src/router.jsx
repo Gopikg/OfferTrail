@@ -5,6 +5,7 @@ import Login from "./pages/Login";
 import Register from "./pages/Register";
 import Dashboard from "./pages/Dashboard";
 import ProtectedRoute from "./components/ProtectedRoute";
+import AddApplication from "./pages/AddApplication";
 
 const router = createBrowserRouter([
   {
@@ -27,6 +28,14 @@ const router = createBrowserRouter([
       </ProtectedRoute>
     ),
   },
+  {
+  path: "/applications/new",
+  element: (
+    <ProtectedRoute>
+      <AddApplication />
+    </ProtectedRoute>
+  ),
+}
 ]);
 
 export default router;
