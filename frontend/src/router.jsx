@@ -6,6 +6,7 @@ import Register from "./pages/Register";
 import Dashboard from "./pages/Dashboard";
 import ProtectedRoute from "./components/ProtectedRoute";
 import AddApplication from "./pages/AddApplication";
+import EditApplication from "./pages/EditApplication";
 
 const router = createBrowserRouter([
   {
@@ -33,6 +34,14 @@ const router = createBrowserRouter([
   element: (
     <ProtectedRoute>
       <AddApplication />
+    </ProtectedRoute>
+  ),
+},
+{
+  path: "/applications/edit/:id",
+  element: (
+    <ProtectedRoute>
+      <EditApplication />
     </ProtectedRoute>
   ),
 }
