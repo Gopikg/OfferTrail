@@ -1,9 +1,11 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.routes.ai import router as ai_router
+from app.routes.gmail import router as gmail_router
 
 app = FastAPI(title="OfferTrail API")
 app.include_router(ai_router)
+app.include_router(gmail_router)
 
 origins = [
     "http://localhost:5173",

@@ -1,9 +1,10 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import Toast from "../components/Toast";
+import ConfirmModal from "../components/ConfirmModal";
 
 import Layout from "../components/Layout";
 import { useAuth } from "../context/AuthContext";
-import { logout } from "../services/auth";
 import AIInsight from "../components/AIInsight";
 import {
   getApplications,
@@ -26,11 +27,24 @@ function Dashboard() {
 
   const [applications, setApplications] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [toast, setToast] = useState(null);
+  useEffect(() => {
+  if (!toast) return;
+
+  const timer = setTimeout(() => {
+    setToast(null);
+  }, 3000);
+
+  return () => clearTimeout(timer);
+}, [toast]);
+
+const [deleteTarget, setDeleteTarget] = useState(null);
 
   const [searchTerm, setSearchTerm] = useState("");
   const [stageFilter, setStageFilter] = useState("All");
 
-  const filteredApplications = applications.filter((application) => {
+const filteredApplications = applications
+  .filter((application) => {
     const search = searchTerm.toLowerCase();
 
     const matchesSearch =
@@ -42,6 +56,12 @@ function Dashboard() {
       application.stage === stageFilter;
 
     return matchesSearch && matchesStage;
+  })
+  .sort((a, b) => {
+    if (!a.deadline) return 1;
+    if (!b.deadline) return -1;
+
+    return new Date(a.deadline) - new Date(b.deadline);
   });
 
   const totalApplications = applications.length;
@@ -82,7 +102,17 @@ function Dashboard() {
   { stage: "Rejected", count: rejectedCount },
 ];
 const upcomingApplications = applications
-  .filter((application) => application.deadline)
+  .filter((application) => {
+    if (!application.deadline) return false;
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const deadline = new Date(application.deadline);
+    deadline.setHours(0, 0, 0, 0);
+
+    return deadline >= today;
+  })
   .sort(
     (a, b) =>
       new Date(a.deadline) - new Date(b.deadline)
@@ -105,20 +135,9 @@ const upcomingApplications = applications
     loadApplications();
   }, [user]);
 
-  async function handleLogout() {
-    await logout();
-    navigate("/login");
-  }
 
-  async function handleDelete(applicationId) {
-  const confirmed = window.confirm(
-    "Are you sure you want to delete this application?"
-  );
 
-  if (!confirmed) {
-    return;
-  }
-
+async function handleDelete(applicationId) {
   try {
     await deleteApplication(user.uid, applicationId);
 
@@ -128,9 +147,21 @@ const upcomingApplications = applications
       )
     );
 
-    alert("Application deleted!");
+    setDeleteTarget(null);
+
+    setToast({
+      message: "Application deleted!",
+      type: "success",
+    });
   } catch (err) {
     console.error("Failed to delete application:", err);
+
+    setDeleteTarget(null);
+
+    setToast({
+      message: "Failed to delete application.",
+      type: "error",
+    });
   }
 }
 
@@ -216,21 +247,6 @@ return (
       </button>
 
     </div>
-
-
-    {/* Logout */}
-
-    {user && (
-      <div className="mt-4">
-        <button
-          onClick={handleLogout}
-          className="text-sm bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg"
-        >
-          Logout
-        </button>
-      </div>
-    )}
-
 
     {/* Statistics */}
 
@@ -361,9 +377,20 @@ return (
   Deadline: {application.deadline || "No deadline"}
 </p>
 
-<p className="text-sm font-medium mt-1">
-  {getDeadlineStatus(application.deadline)}
-</p>
+{application.deadline && (
+  <p
+    className={`text-sm font-medium mt-1 ${
+      getDeadlineStatus(application.deadline) === "Overdue"
+        ? "text-red-600"
+        : getDeadlineStatus(application.deadline) === "Due today"
+        ? "text-orange-600"
+        : "text-green-600"
+    }`}
+  >
+    {getDeadlineStatus(application.deadline)}
+  </p>
+)}
+
 
               <button
                 onClick={() =>
@@ -504,7 +531,7 @@ return (
             </button>
 
             <button
-              onClick={() => handleDelete(application.id)}
+              onClick={() => setDeleteTarget(application.id)}
               className="mt-3 ml-2 bg-red-600 text-white px-4 py-2 rounded"
             >
               Delete
@@ -515,6 +542,21 @@ return (
 
       </div>
     )}
+    {deleteTarget && (
+  <ConfirmModal
+    message="Are you sure you want to delete this application?"
+    onConfirm={() => handleDelete(deleteTarget)}
+    onCancel={() => setDeleteTarget(null)}
+  />
+)}
+    
+    {toast && (
+  <Toast
+    message={toast.message}
+    type={toast.type}
+    onClose={() => setToast(null)}
+  />
+)}
 
   </Layout>
 );

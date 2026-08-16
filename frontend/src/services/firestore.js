@@ -3,11 +3,12 @@ import {
   collection,
   addDoc,
   getDocs,
-  updateDoc,
   deleteDoc,
-  doc,
   serverTimestamp,
-} from "firebase/firestore";  
+  doc,
+  updateDoc,
+  arrayUnion,
+} from "firebase/firestore";
 
 import app from "../firebase";
 
@@ -18,6 +19,12 @@ export async function addApplication(uid, application) {
     collection(db, "users", uid, "applications"),
     {
       ...application,
+      stageHistory: [
+        {
+          stage: application.stage,
+          changedAt: new Date().toISOString(),
+        },
+      ],
       createdAt: serverTimestamp(),
     }
   );
@@ -33,22 +40,36 @@ export async function getApplications(uid) {
     ...doc.data(),
   }));
 }
-export async function updateApplication(uid, applicationId, application) {
-  const applicationRef = collection(
+
+export async function updateApplication(
+  uid,
+  applicationId,
+  application,
+  previousStage
+) {
+  const applicationRef = doc(
     db,
     "users",
     uid,
-    "applications"
+    "applications",
+    applicationId
   );
 
-  return await updateDoc(
-    doc(applicationRef, applicationId),
-    {
-      ...application,
-      updatedAt: serverTimestamp(),
-    }
-  );
+  const updateData = {
+    ...application,
+    updatedAt: serverTimestamp(),
+  };
+
+  if (application.stage !== previousStage) {
+    updateData.stageHistory = arrayUnion({
+      stage: application.stage,
+      changedAt: new Date().toISOString(),
+    });
+  }
+
+  return await updateDoc(applicationRef, updateData);
 }
+
 export async function deleteApplication(uid, applicationId) {
   const applicationRef = doc(
     db,
@@ -60,4 +81,5 @@ export async function deleteApplication(uid, applicationId) {
 
   return await deleteDoc(applicationRef);
 }
+
 export default db;
