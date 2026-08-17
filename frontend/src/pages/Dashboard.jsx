@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Toast from "../components/Toast";
 import ConfirmModal from "../components/ConfirmModal";
+import { getGmailMessages } from "../services/gmail";
 
 import Layout from "../components/Layout";
 import { useAuth } from "../context/AuthContext";
@@ -28,6 +29,9 @@ function Dashboard() {
   const [applications, setApplications] = useState([]);
   const [loading, setLoading] = useState(true);
   const [toast, setToast] = useState(null);
+  const [gmailMessages, setGmailMessages] = useState([]);
+  const [gmailLoading, setGmailLoading] = useState(false);
+  const [gmailConnected, setGmailConnected] = useState(false);
   useEffect(() => {
   if (!toast) return;
 
@@ -220,34 +224,74 @@ function getDeadlineStatus(deadline) {
   } remaining`;
 }
 
+async function handleGmailSync() {
+  setGmailLoading(true);
+
+  try {
+    const data = await getGmailMessages();
+
+    setGmailMessages(data.messages || []);
+    setGmailConnected(true);
+
+    setToast({
+      message: `Gmail synced: ${data.count} messages found.`,
+      type: "success",
+    });
+  } catch (err) {
+    console.error("Failed to sync Gmail:", err);
+
+    setGmailConnected(false);
+
+    setToast({
+      message: err.message || "Failed to sync Gmail.",
+      type: "error",
+    });
+  } finally {
+    setGmailLoading(false);
+  }
+}
+const jobEmails = gmailMessages.filter(
+  (message) => message.isJobEmail
+);
+
 return (
   <Layout>
 
     {/* Dashboard Header */}
 
-    <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+<div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
 
-      <div>
-        <h1 className="text-3xl font-bold">
-          Dashboard
-        </h1>
+  <div>
+    <h1 className="text-3xl font-bold">
+      Dashboard
+    </h1>
 
-        {user && (
-          <p className="text-gray-500 mt-1">
-            Welcome back, {user.email}
-          </p>
-        )}
-      </div>
+    {user && (
+      <p className="text-gray-500 mt-1">
+        Welcome back, {user.email}
+      </p>
+    )}
+  </div>
 
-      <button
-        onClick={() => navigate("/applications/new")}
-        className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2 rounded-lg"
-      >
-        + Add Application
-      </button>
+  <div className="flex flex-col sm:flex-row gap-3">
 
-    </div>
+    <button
+      onClick={() => navigate("/applications/new")}
+      className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2 rounded-lg"
+    >
+      + Add Application
+    </button>
 
+    <button
+      onClick={() => navigate("/gmail")}
+      className="bg-red-600 hover:bg-red-700 text-white px-5 py-2 rounded-lg"
+    >
+      Import from Gmail
+    </button>
+
+  </div>
+
+</div>
     {/* Statistics */}
 
     <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mt-8">
@@ -345,6 +389,110 @@ return (
         </BarChart>
       </ResponsiveContainer>
     </div>
+    {/* Gmail Integration */}
+
+<div className="mt-10 border rounded-xl p-6 bg-white shadow-sm">
+
+  <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+
+    <div>
+      <h2 className="text-2xl font-bold">
+        Gmail Integration
+      </h2>
+
+      <p className="text-gray-500 mt-1">
+        Sync your Gmail inbox to find recruitment-related emails.
+      </p>
+
+      {gmailConnected && (
+        <p className="text-sm text-green-600 font-medium mt-2">
+          Gmail connected
+        </p>
+      )}
+    </div>
+
+    <button
+      onClick={handleGmailSync}
+      disabled={gmailLoading}
+      className="bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white px-5 py-2 rounded-lg"
+    >
+      {gmailLoading ? "Syncing..." : "Sync Gmail"}
+    </button>
+{jobEmails.length > 0 && (
+  <div className="mt-6">
+
+    <h3 className="text-lg font-bold mb-3">
+      Potential Job Emails
+    </h3>
+
+    <div className="space-y-3">
+
+      {jobEmails.map((message) => (
+        <div
+          key={message.id}
+          className="border rounded-lg p-4"
+        >
+
+          <p className="font-medium">
+            {message.subject || "No subject"}
+          </p>
+
+          <p className="text-sm text-gray-500 mt-1">
+            From: {message.from || "Unknown sender"}
+          </p>
+
+          <span className="inline-block mt-2 text-xs bg-green-100 text-green-800 px-2 py-1 rounded-full">
+            Potential job email
+          </span>
+           <br />
+        <button
+  onClick={() =>
+    navigate("/applications/new", {
+      state: {
+        emailSubject: message.subject,
+        emailSender: message.from,
+      },
+    })
+  }
+  className="mt-3 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg"
+>
+  Import to Application
+</button>
+        </div>
+      ))}
+
+    </div>
+
+  </div>
+)}
+  </div>
+
+  {gmailMessages.length > 0 && (
+    <div className="mt-6 space-y-3">
+
+      <h3 className="font-bold">
+        Recent Emails
+      </h3>
+
+      {gmailMessages.map((message) => (
+        <div
+          key={message.id}
+          className="border rounded-lg p-4"
+        >
+          <p className="font-medium">
+            {message.subject || "No subject"}
+          </p>
+
+          <p className="text-sm text-gray-500 mt-1">
+            From: {message.from || "Unknown sender"}
+          </p>
+        </div>
+      ))}
+
+    </div>
+  )}
+
+</div>
 
     {/* Upcoming Deadlines */}
 

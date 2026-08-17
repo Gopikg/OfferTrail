@@ -7,6 +7,7 @@ import Dashboard from "./pages/Dashboard";
 import ProtectedRoute from "./components/ProtectedRoute";
 import AddApplication from "./pages/AddApplication";
 import EditApplication from "./pages/EditApplication";
+import Gmail from "./pages/Gmail";
 
 const router = createBrowserRouter([
   {
@@ -36,6 +37,10 @@ const router = createBrowserRouter([
       <AddApplication />
     </ProtectedRoute>
   ),
+},
+{
+  path: "/gmail",
+  element: <Gmail />,
 },
 {
   path: "/applications/edit/:id",
