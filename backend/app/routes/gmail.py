@@ -1,10 +1,19 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Header
 from fastapi.responses import RedirectResponse
 from google_auth_oauthlib.flow import Flow
 from googleapiclient.discovery import build
+from google.oauth2.credentials import Credentials
+from google.auth.transport.requests import Request
 from dotenv import load_dotenv
 
+from firebase_admin import firestore
+from app.services.firebase_admin import verify_firebase_token
+from app.services.gmail_classifier import is_job_email
+from app.services.gmail_extractor import extract_application_data
+
 import os
+import base64
+import json
 
 load_dotenv()
 
@@ -29,13 +38,87 @@ CLIENT_CONFIG = {
     }
 }
 
-# Temporary storage for local development
+# Temporary OAuth flow storage.
+# The Google credentials themselves are NOT stored here anymore.
 oauth_data = {}
-gmail_credentials = None
+
+db = firestore.client()
 
 
-@router.get("/connect")
-async def connect_gmail():
+def get_bearer_token(authorization):
+    if not authorization:
+        raise HTTPException(
+            status_code=401,
+            detail="Missing authorization token."
+        )
+
+    if not authorization.startswith("Bearer "):
+        raise HTTPException(
+            status_code=401,
+            detail="Invalid authorization header."
+        )
+
+    return authorization.split(" ", 1)[1]
+
+
+def get_user_from_token(authorization):
+    id_token = get_bearer_token(authorization)
+
+    try:
+        decoded_token = verify_firebase_token(id_token)
+        return decoded_token
+
+    except Exception as err:
+        print("Firebase authentication error:", err)
+
+        raise HTTPException(
+            status_code=401,
+            detail="Invalid Firebase authentication token."
+        )
+
+
+def save_gmail_credentials(uid, credentials):
+    data = {
+        "token": credentials.token,
+        "refresh_token": credentials.refresh_token,
+        "token_uri": credentials.token_uri,
+        "client_id": credentials.client_id,
+        "client_secret": credentials.client_secret,
+        "scopes": credentials.scopes,
+    }
+
+    db.collection("gmail_connections").document(uid).set(data)
+
+
+def load_gmail_credentials(uid):
+    doc = (
+        db.collection("gmail_connections")
+        .document(uid)
+        .get()
+    )
+
+    if not doc.exists:
+        return None
+
+    data = doc.to_dict()
+
+    return Credentials(
+        token=data.get("token"),
+        refresh_token=data.get("refresh_token"),
+        token_uri=data.get("token_uri"),
+        client_id=data.get("client_id"),
+        client_secret=data.get("client_secret"),
+        scopes=data.get("scopes"),
+    )
+
+
+@router.post("/connect")
+async def connect_gmail(
+    authorization: str = Header(None)
+):
+    user = get_user_from_token(authorization)
+
+    uid = user["uid"]
 
     flow = Flow.from_client_config(
         CLIENT_CONFIG,
@@ -50,31 +133,45 @@ async def connect_gmail():
         prompt="consent",
     )
 
-    # Store the flow so the callback can reuse its PKCE verifier
-    oauth_data[state] = flow
+    # Store both the OAuth flow and Firebase UID.
+    # This lets the callback know which OfferTrail user
+    # owns the resulting Gmail credentials.
+    oauth_data[state] = {
+        "flow": flow,
+        "uid": uid,
+    }
 
-    return RedirectResponse(authorization_url)
+    return {
+        "authorization_url": authorization_url
+    }
 
 
 @router.get("/callback")
-async def gmail_callback(code: str, state: str):
+async def gmail_callback(
+    code: str,
+    state: str
+):
+    oauth_session = oauth_data.get(state)
 
-    global gmail_credentials
-
-    flow = oauth_data.get(state)
-
-    if flow is None:
+    if oauth_session is None:
         raise HTTPException(
             status_code=400,
             detail="OAuth session expired or invalid."
         )
 
+    flow = oauth_session["flow"]
+    uid = oauth_session["uid"]
+
     try:
         flow.fetch_token(code=code)
 
-        gmail_credentials = flow.credentials
+        credentials = flow.credentials
 
-        # We no longer need this OAuth flow
+        save_gmail_credentials(
+            uid,
+            credentials
+        )
+
         del oauth_data[state]
 
         return {
@@ -91,20 +188,96 @@ async def gmail_callback(code: str, state: str):
         )
 
 
-@router.get("/messages")
-async def get_gmail_messages():
+def decode_body(data):
+    if not data:
+        return ""
 
-    if gmail_credentials is None:
+    try:
+        decoded = base64.urlsafe_b64decode(
+            data.encode("UTF-8")
+        )
+
+        return decoded.decode(
+            "UTF-8",
+            errors="ignore"
+        )
+
+    except Exception as err:
+        print("Failed to decode email body:", err)
+        return ""
+
+
+def extract_body(payload):
+    """
+    Extract plain-text content from a Gmail message payload.
+    Handles both simple and multipart emails.
+    """
+
+    body_data = payload.get(
+        "body",
+        {}
+    ).get("data")
+
+    if body_data:
+        return decode_body(body_data)
+
+    parts = payload.get("parts", [])
+
+    for part in parts:
+
+        mime_type = part.get("mimeType", "")
+
+        if mime_type == "text/plain":
+
+            body_data = part.get(
+                "body",
+                {}
+            ).get("data")
+
+            if body_data:
+                return decode_body(body_data)
+
+        if part.get("parts"):
+
+            body = extract_body(part)
+
+            if body:
+                return body
+
+    return ""
+
+
+@router.get("/messages")
+async def get_gmail_messages(
+    authorization: str = Header(None)
+):
+    user = get_user_from_token(authorization)
+
+    uid = user["uid"]
+
+    credentials = load_gmail_credentials(uid)
+
+    if credentials is None:
         raise HTTPException(
             status_code=401,
             detail="Gmail is not connected."
         )
 
     try:
+
+        # Refresh the access token if necessary.
+        if credentials.expired and credentials.refresh_token:
+            credentials.refresh(Request())
+
+            save_gmail_credentials(
+                uid,
+                credentials
+            )
+
         service = build(
             "gmail",
             "v1",
-            credentials=gmail_credentials,
+            credentials=credentials,
         )
 
         results = service.users().messages().list(
@@ -112,7 +285,10 @@ async def get_gmail_messages():
             maxResults=10,
         ).execute()
 
-        messages = results.get("messages", [])
+        messages = results.get(
+            "messages",
+            []
+        )
 
         email_data = []
 
@@ -121,14 +297,15 @@ async def get_gmail_messages():
             message_data = service.users().messages().get(
                 userId="me",
                 id=message["id"],
-                format="metadata",
-                metadataHeaders=["Subject", "From"],
+                format="full",
             ).execute()
 
-            headers = message_data.get(
+            payload = message_data.get(
                 "payload",
                 {}
-            ).get(
+            )
+
+            headers = payload.get(
                 "headers",
                 []
             )
@@ -144,11 +321,29 @@ async def get_gmail_messages():
                 elif header["name"] == "From":
                     sender = header["value"]
 
-            email_data.append({
+            body = extract_body(payload)
+
+            is_job = is_job_email(
+                subject,
+                sender
+            )
+
+            email = {
                 "id": message["id"],
                 "subject": subject,
                 "from": sender,
-            })
+                "body": body,
+                "isJobEmail": is_job,
+            }
+
+            if is_job:
+                email["extracted"] = extract_application_data(
+                    subject,
+                    sender,
+                    body
+                )
+
+            email_data.append(email)
 
         return {
             "count": len(email_data),
