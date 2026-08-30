@@ -8,6 +8,7 @@ import ProtectedRoute from "./components/ProtectedRoute";
 import AddApplication from "./pages/AddApplication";
 import EditApplication from "./pages/EditApplication";
 import Gmail from "./pages/Gmail";
+import PlacementAdmin from "./pages/PlacementAdmin";
 
 const router = createBrowserRouter([
   {
@@ -51,6 +52,15 @@ const router = createBrowserRouter([
   element: (
     <ProtectedRoute>
       <EditApplication />
+    </ProtectedRoute>
+  ),
+}
+,
+{
+  path: "/placement-admin",
+  element: (
+    <ProtectedRoute>
+      <PlacementAdmin />
     </ProtectedRoute>
   ),
 }
