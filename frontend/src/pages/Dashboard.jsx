@@ -256,15 +256,15 @@ const jobEmails = gmailMessages.filter(
 
 return (
   <Layout>
+    <div className="dashboard-page">
 
     {/* Dashboard Header */}
 
 <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
 
   <div>
-    <h1 className="text-3xl font-bold">
-      Dashboard
-    </h1>
+    <p className="eyebrow">Recruiting operations</p>
+    <h1 className="page-title">Application dashboard</h1>
 
     {user && (
       <p className="text-gray-500 mt-1">
@@ -277,14 +277,14 @@ return (
 
     <button
       onClick={() => navigate("/applications/new")}
-      className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2 rounded-lg"
+      className="primary-button"
     >
       + Add Application
     </button>
 
     <button
       onClick={() => navigate("/gmail")}
-      className="bg-red-600 hover:bg-red-700 text-white px-5 py-2 rounded-lg"
+      className="secondary-button"
     >
       Import from Gmail
     </button>
@@ -381,11 +381,11 @@ return (
 
       <ResponsiveContainer width="100%" height={300}>
         <BarChart data={chartData}>
-          <CartesianGrid strokeDasharray="3 3" />
-          <XAxis dataKey="stage" />
-          <YAxis allowDecimals={false} />
+          <CartesianGrid stroke="var(--chart-grid)" strokeDasharray="3 3" />
+          <XAxis dataKey="stage" tick={{ fill: "var(--chart-text)" }} axisLine={{ stroke: "var(--chart-grid)" }} />
+          <YAxis allowDecimals={false} tick={{ fill: "var(--chart-text)" }} axisLine={{ stroke: "var(--chart-grid)" }} />
           <Tooltip />
-          <Bar dataKey="count" />
+          <Bar dataKey="count" fill="var(--chart-bar)" radius={[4, 4, 0, 0]} />
         </BarChart>
       </ResponsiveContainer>
     </div>
@@ -414,7 +414,7 @@ return (
     <button
       onClick={handleGmailSync}
       disabled={gmailLoading}
-      className="bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white px-5 py-2 rounded-lg"
+      className="primary-button disabled:bg-gray-400"
     >
       {gmailLoading ? "Syncing..." : "Sync Gmail"}
     </button>
@@ -706,6 +706,7 @@ return (
   />
 )}
 
+    </div>
   </Layout>
 );
 }

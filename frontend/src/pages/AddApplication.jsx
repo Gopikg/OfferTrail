@@ -9,12 +9,19 @@ import Toast from "../components/Toast";
 function AddApplication() {
   const location = useLocation();
   const importedEmail = location.state;
+  const extracted = importedEmail?.extracted;
 
-  const [company, setCompany] = useState("");
-  const [role, setRole] = useState("");
-  const [stage, setStage] = useState("Applied");
+  const [company, setCompany] = useState(() => extracted?.company || "");
+  const [role, setRole] = useState(() => extracted?.role || "");
+  const [stage, setStage] = useState(() => extracted?.stage || "Applied");
   const [deadline, setDeadline] = useState("");
-  const [notes, setNotes] = useState("");
+  const [notes, setNotes] = useState(() => {
+    if (!importedEmail) return "";
+
+    return `Imported from Gmail\n\nSubject: ${
+      importedEmail.subject || "No subject"
+    }\nFrom: ${importedEmail.from || "Unknown sender"}`;
+  });
   const [toast, setToast] = useState(null);
 
   const { user } = useAuth();
@@ -28,31 +35,6 @@ function AddApplication() {
 
     return () => clearTimeout(timer);
   }, [toast]);
-
-  useEffect(() => {
-  if (!importedEmail) return;
-
-  const extracted = importedEmail.extracted;
-
-  if (!extracted) return;
-
-  setCompany(extracted.company || "");
-  setRole(extracted.role || "");
-  setStage(extracted.stage || "Applied");
-}, [importedEmail]);
-
-  useEffect(() => {
-    if (importedEmail) {
-      setNotes(
-        `Imported from Gmail\n\nSubject: ${
-          importedEmail.emailSubject || "No subject"
-        }\nFrom: ${
-          importedEmail.emailSender || "Unknown sender"
-        }`
-      );
-    }
-  }, [importedEmail]);
-
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -72,6 +54,9 @@ function AddApplication() {
         stage,
         deadline,
         notes,
+        ...(importedEmail?.id
+          ? { gmailMessageIds: [importedEmail.id] }
+          : {}),
       });
 
       setToast({
@@ -97,9 +82,12 @@ function AddApplication() {
 
   return (
     <Layout>
-      <h1 className="text-3xl font-bold mb-6">
-        Add Application
-      </h1>
+      <div className="form-shell">
+        <div className="page-heading">
+          <p className="eyebrow">Application workspace</p>
+          <h1 className="page-title">Add application</h1>
+          <p className="page-subtitle">Create a record manually or complete the details detected from an email.</p>
+        </div>
 
       {importedEmail && (
         <div className="mb-6 border border-blue-200 bg-blue-50 rounded-lg p-4">
@@ -108,15 +96,16 @@ function AddApplication() {
           </p>
 
           <p className="text-sm text-blue-700 mt-1">
-            {importedEmail.emailSubject || "No subject"}
+            {importedEmail.subject || "No subject"}
           </p>
 
           <p className="text-sm text-blue-700">
-            From: {importedEmail.emailSender || "Unknown sender"}
+            From: {importedEmail.from || "Unknown sender"}
           </p>
         </div>
       )}
 
+      <div className="surface form-card">
       <form
         onSubmit={handleSubmit}
         className="space-y-4"
@@ -166,11 +155,12 @@ function AddApplication() {
 
         <button
           type="submit"
-          className="bg-blue-700 text-white px-6 py-2 rounded"
+          className="primary-button"
         >
           Save Application
         </button>
       </form>
+      </div>
 
       {toast && (
         <Toast
@@ -179,6 +169,7 @@ function AddApplication() {
           onClose={() => setToast(null)}
         />
       )}
+      </div>
     </Layout>
   );
 }

@@ -29,13 +29,17 @@ function Login() {
 
   return (
     <Layout>
-      <h1 className="text-3xl font-bold mb-6">
-        Login
-      </h1>
+      <div className="form-shell">
+        <div className="page-heading">
+          <p className="eyebrow">OfferTrail workspace</p>
+          <h1 className="page-title">Welcome back</h1>
+          <p className="page-subtitle">Sign in to manage your recruiting pipeline.</p>
+        </div>
 
+      <div className="surface form-card">
       <form
         onSubmit={handleSubmit}
-        className="space-y-4 max-w-md"
+        className="space-y-4"
       >
         <input
           type="email"
@@ -55,11 +59,12 @@ function Login() {
 
         <button
           type="submit"
-          className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg"
+          className="primary-button"
         >
           Login
         </button>
       </form>
+      </div>
 
       {toast && (
         <Toast
@@ -68,6 +73,7 @@ function Login() {
           onClose={() => setToast(null)}
         />
       )}
+      </div>
     </Layout>
   );
 }

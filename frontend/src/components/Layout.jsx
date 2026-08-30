@@ -2,12 +2,12 @@ import Navbar from "./Navbar";
 
 function Layout({ children }) {
   return (
-    <>
+    <div className="app-shell">
       <Navbar />
-      <div style={{ padding: "30px" }}>
+      <main className="workspace">
         {children}
-      </div>
-    </>
+      </main>
+    </div>
   );
 }
 

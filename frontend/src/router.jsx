@@ -40,7 +40,11 @@ const router = createBrowserRouter([
 },
 {
   path: "/gmail",
-  element: <Gmail />,
+  element: (
+    <ProtectedRoute>
+      <Gmail />
+    </ProtectedRoute>
+  ),
 },
 {
   path: "/applications/edit/:id",

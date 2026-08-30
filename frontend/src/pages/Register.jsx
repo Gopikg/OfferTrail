@@ -29,13 +29,16 @@ function Register() {
 
   return (
     <Layout>
-      <h1 className="text-3xl font-bold mb-6">
-        Create Account
-      </h1>
+      <div className="form-shell">
+        <div className="page-heading">
+          <p className="eyebrow">OfferTrail workspace</p>
+          <h1 className="page-title">Create your workspace</h1>
+          <p className="page-subtitle">Start tracking every opportunity in one focused view.</p>
+        </div>
 
       <form
         onSubmit={handleSubmit}
-        className="space-y-4 max-w-md"
+        className="surface form-card"
       >
         <input
           type="email"
@@ -55,7 +58,7 @@ function Register() {
 
         <button
           type="submit"
-          className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg"
+          className="primary-button"
         >
           Register
         </button>
@@ -68,6 +71,7 @@ function Register() {
           onClose={() => setToast(null)}
         />
       )}
+      </div>
     </Layout>
   );
 }

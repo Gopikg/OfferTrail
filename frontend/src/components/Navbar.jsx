@@ -1,10 +1,19 @@
-import { Link, useNavigate } from "react-router-dom";
+import { useEffect, useState } from "react";
+import { Link, NavLink, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { logout } from "../services/auth";
 
 function Navbar() {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const [theme, setTheme] = useState(
+    () => localStorage.getItem("offertrail-theme") || "light"
+  );
+
+  useEffect(() => {
+    document.documentElement.dataset.theme = theme;
+    localStorage.setItem("offertrail-theme", theme);
+  }, [theme]);
 
   async function handleLogout() {
     await logout();
@@ -12,72 +21,43 @@ function Navbar() {
   }
 
   return (
-    <nav
-      style={{
-        padding: "20px",
-        background: "#2563eb",
-        color: "white",
-        display: "flex",
-        justifyContent: "space-between",
-        alignItems: "center",
-      }}
-    >
-      <h2>OfferTrail</h2>
+    <nav className="topbar">
+      <Link to="/" className="brand">
+        <span className="brand-mark">↗</span>
+        OfferTrail
+      </Link>
 
-      <div>
-        <Link
-          to="/"
-          style={{ color: "white", marginRight: "20px" }}
-        >
-          Home
-        </Link>
+      <div className="main-nav">
+        <NavLink to="/" end className="nav-link">Overview</NavLink>
 
         {user ? (
           <>
-            <Link
-              to="/dashboard"
-              style={{ color: "white", marginRight: "20px" }}
-            >
-              Dashboard
-            </Link>
-
-            <Link
-              to="/applications/new"
-              style={{ color: "white", marginRight: "20px" }}
-            >
-              Add Application
-            </Link>
-
-            <button
-              onClick={handleLogout}
-              style={{
-                color: "white",
-                background: "transparent",
-                border: "none",
-                cursor: "pointer",
-              }}
-            >
-              Logout
-            </button>
+            <NavLink to="/dashboard" className="nav-link">Applications</NavLink>
+            <NavLink to="/gmail" className="nav-link">Mail updates</NavLink>
           </>
         ) : (
           <>
-            <Link
-              to="/login"
-              style={{ color: "white", marginRight: "20px" }}
-            >
-              Login
-            </Link>
-
-            <Link
-              to="/register"
-              style={{ color: "white" }}
-            >
-              Register
-            </Link>
+            <NavLink to="/login" className="nav-link">Sign in</NavLink>
+            <NavLink to="/register" className="nav-link">Create account</NavLink>
           </>
         )}
       </div>
+
+      <button
+        type="button"
+        onClick={() => setTheme((current) => current === "dark" ? "light" : "dark")}
+        className="nav-action"
+        aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} mode`}
+      >
+        {theme === "dark" ? "Light" : "Dark"}
+      </button>
+
+      {user && (
+        <div className="account-actions">
+          <span className="account-email">{user.email}</span>
+          <button onClick={handleLogout} className="nav-action">Sign out</button>
+        </div>
+      )}
     </nav>
   );
 }

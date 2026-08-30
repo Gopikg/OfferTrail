@@ -113,10 +113,14 @@ function EditApplication() {
 
   return (
     <Layout>
-      <h1 className="text-3xl font-bold mb-6">
-        Edit Application
-      </h1>
+      <div className="form-shell">
+        <div className="page-heading">
+          <p className="eyebrow">Application workspace</p>
+          <h1 className="page-title">Edit application</h1>
+          <p className="page-subtitle">Keep your role details and recruiting progress current.</p>
+        </div>
 
+      <div className="surface form-card">
       <form
         onSubmit={handleSubmit}
         className="space-y-4"
@@ -166,11 +170,12 @@ function EditApplication() {
 
         <button
           type="submit"
-          className="bg-blue-700 text-white px-6 py-2 rounded"
+          className="primary-button"
         >
           Update Application
         </button>
       </form>
+      </div>
 
       {/* Application History */}
 
@@ -210,6 +215,7 @@ function EditApplication() {
           onClose={() => setToast(null)}
         />
       )}
+      </div>
     </Layout>
   );
 }

@@ -28,6 +28,16 @@ SCOPES = [
     "https://www.googleapis.com/auth/gmail.readonly"
 ]
 
+# Narrow Gmail's search before loading messages, then apply our own classifier
+# below so the client only receives job-application-related mail.
+JOB_EMAIL_QUERY = (
+    'newer_than:3d '
+    '{application applied recruitment recruiter interview interviewing '
+    'assessment "coding test" "technical round" "hr round" shortlisted '
+    '"hr interview" "human resources" "phone screen" "offer letter" "job offer" '
+    'rejected "application status"}'
+)
+
 CLIENT_CONFIG = {
     "web": {
         "client_id": CLIENT_ID,
@@ -282,7 +292,8 @@ async def get_gmail_messages(
 
         results = service.users().messages().list(
             userId="me",
-            maxResults=10,
+            q=JOB_EMAIL_QUERY,
+            maxResults=50,
         ).execute()
 
         messages = results.get(
@@ -325,8 +336,12 @@ async def get_gmail_messages(
 
             is_job = is_job_email(
                 subject,
-                sender
+                sender,
+                body,
             )
+
+            if not is_job:
+                continue
 
             email = {
                 "id": message["id"],
@@ -336,12 +351,11 @@ async def get_gmail_messages(
                 "isJobEmail": is_job,
             }
 
-            if is_job:
-                email["extracted"] = extract_application_data(
-                    subject,
-                    sender,
-                    body
-                )
+            email["extracted"] = extract_application_data(
+                subject,
+                sender,
+                body
+            )
 
             email_data.append(email)
 

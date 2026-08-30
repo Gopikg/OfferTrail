@@ -65,9 +65,47 @@ def extract_stage(subject, body):
     if any(
         phrase in text
         for phrase in [
+            "rejected",
+            "regret to inform",
+            "not moving forward",
+        ]
+    ):
+        return "Rejected"
+
+    if any(
+        phrase in text
+        for phrase in [
+            "offer letter",
+            "job offer",
+            "pleased to offer",
+            "we are delighted to offer",
+            "we are happy to offer",
+        ]
+    ):
+        return "Offer"
+
+    if any(
+        phrase in text
+        for phrase in [
+            "hr round",
+            "hr interview",
+            "human resources interview",
+            "human resources round",
+            "people interview",
+            "people round",
+            "final hr",
+        ]
+    ):
+        return "HR"
+
+    if any(
+        phrase in text
+        for phrase in [
             "interview scheduled",
             "interview invitation",
             "invite you to an interview",
+            "phone screen",
+            "technical interview",
             "interview",
         ]
     ):
@@ -80,6 +118,7 @@ def extract_stage(subject, body):
             "assessment invitation",
             "complete an assessment",
             "coding assessment",
+            "coding challenge",
         ]
     ):
         return "OA"
@@ -90,29 +129,10 @@ def extract_stage(subject, body):
             "application received",
             "received your application",
             "thank you for applying",
+            "application confirmation",
         ]
     ):
         return "Applied"
-
-    if any(
-        phrase in text
-        for phrase in [
-            "offer letter",
-            "job offer",
-            "pleased to offer",
-        ]
-    ):
-        return "Offer"
-
-    if any(
-        phrase in text
-        for phrase in [
-            "rejected",
-            "regret to inform",
-            "not moving forward",
-        ]
-    ):
-        return "Rejected"
 
     return "Applied"
 
