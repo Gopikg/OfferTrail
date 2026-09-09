@@ -34,6 +34,7 @@ function Navbar() {
           <>
             <NavLink to="/dashboard" className="nav-link">Applications</NavLink>
             <NavLink to="/gmail" className="nav-link">Mail updates</NavLink>
+            <NavLink to="/offer-coordinator" className="nav-link">Publish notice</NavLink>
           </>
         ) : (
           <>

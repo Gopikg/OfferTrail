@@ -9,13 +9,18 @@ import Toast from "../components/Toast";
 function AddApplication() {
   const location = useLocation();
   const importedEmail = location.state;
+  const importedNotice = importedEmail?.notice;
   const extracted = importedEmail?.extracted;
 
-  const [company, setCompany] = useState(() => extracted?.company || "");
-  const [role, setRole] = useState(() => extracted?.role || "");
+  const [company, setCompany] = useState(() => extracted?.company || importedNotice?.company || "");
+  const [role, setRole] = useState(() => extracted?.role || importedNotice?.role || "");
   const [stage, setStage] = useState(() => extracted?.stage || "Applied");
-  const [deadline, setDeadline] = useState("");
+  const [deadline, setDeadline] = useState(() => importedNotice?.deadline || "");
   const [notes, setNotes] = useState(() => {
+    if (importedNotice) {
+      return `Added from coordinator notice\n\n${importedNotice.description || ""}`.trim();
+    }
+
     if (!importedEmail) return "";
 
     return `Imported from Gmail\n\nSubject: ${
@@ -57,6 +62,12 @@ function AddApplication() {
         ...(importedEmail?.id
           ? { gmailMessageIds: [importedEmail.id] }
           : {}),
+        ...(importedNotice
+          ? {
+              jobNoticeId: importedNotice.id,
+              source: "coordinator-notice",
+            }
+          : {}),
       });
 
       setToast({
@@ -89,7 +100,7 @@ function AddApplication() {
           <p className="page-subtitle">Create a record manually or complete the details detected from an email.</p>
         </div>
 
-      {importedEmail && (
+      {importedEmail && !importedNotice && (
         <div className="mb-6 border border-blue-200 bg-blue-50 rounded-lg p-4">
           <p className="font-medium text-blue-800">
             Imported from Gmail
@@ -101,6 +112,15 @@ function AddApplication() {
 
           <p className="text-sm text-blue-700">
             From: {importedEmail.from || "Unknown sender"}
+          </p>
+        </div>
+      )}
+
+      {importedNotice && (
+        <div className="mb-6 border border-blue-200 bg-blue-50 rounded-lg p-4">
+          <p className="font-medium text-blue-800">Added from coordinator notice</p>
+          <p className="text-sm text-blue-700 mt-1">
+            {importedNotice.company} · {importedNotice.role}
           </p>
         </div>
       )}

@@ -1,0 +1,111 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return signedIn() && request.auth.uid == userId;
+    }
+
+    function isPlacementAdmin() {
+      return signedIn()
+        && exists(/databases/$(database)/documents/admins/$(request.auth.uid));
+    }
+
+    function isCoordinator() {
+      return signedIn()
+        && exists(/databases/$(database)/documents/coordinators/$(request.auth.uid));
+    }
+
+    function managesCircle(circleId) {
+      return isCoordinator()
+        && circleId in get(
+          /databases/$(database)/documents/coordinators/$(request.auth.uid)
+        ).data.circleIds;
+    }
+
+    function belongsToCircle(circleId) {
+      return signedIn()
+        && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        && circleId in get(
+          /databases/$(database)/documents/users/$(request.auth.uid)
+        ).data.circleIds;
+    }
+
+    function validNoticeStatus(status) {
+      return status == 'draft' || status == 'published';
+    }
+
+    function validCoordinatorRequestStatus(status) {
+      return status == 'pending' || status == 'approved' || status == 'rejected';
+    }
+
+    match /users/{userId} {
+      allow read: if isOwner(userId) || isPlacementAdmin();
+      // Circle membership is placement-managed; clients must not grant themselves access.
+      allow create: if isOwner(userId)
+        && request.resource.data.keys().hasOnly(['role', 'email', 'createdAt'])
+        && request.resource.data.role == 'student'
+        && request.resource.data.email == request.auth.token.email;
+      allow update, delete: if isPlacementAdmin();
+
+      match /applications/{applicationId} {
+        allow read, write: if isOwner(userId);
+      }
+    }
+
+    match /admins/{userId} {
+      allow read: if isOwner(userId);
+      allow write: if false;
+    }
+
+    match /coordinators/{userId} {
+      allow read: if isOwner(userId) || isPlacementAdmin();
+      allow write: if isPlacementAdmin();
+    }
+
+    match /circles/{circleId} {
+      allow read: if isCoordinator() || isPlacementAdmin();
+      allow write: if isPlacementAdmin();
+    }
+
+    match /coordinatorRequests/{userId} {
+      allow create: if isOwner(userId)
+        && request.resource.data.keys().hasOnly(['email', 'status', 'requestedAt'])
+        && request.resource.data.email == request.auth.token.email
+        && request.resource.data.status == 'pending';
+      allow read: if isOwner(userId) || isPlacementAdmin();
+      allow update: if isPlacementAdmin()
+        && validCoordinatorRequestStatus(request.resource.data.status);
+      allow delete: if isPlacementAdmin();
+    }
+
+    match /jobNotices/{noticeId} {
+      allow create: if isCoordinator()
+        && request.resource.data.createdBy == request.auth.uid
+        && validNoticeStatus(request.resource.data.status)
+        && managesCircle(request.resource.data.targetCircleId);
+
+      allow read: if (isCoordinator() && resource.data.createdBy == request.auth.uid)
+        || (resource.data.status == 'published'
+          && belongsToCircle(resource.data.targetCircleId));
+
+      allow update: if isCoordinator()
+        && resource.data.createdBy == request.auth.uid
+        && request.resource.data.createdBy == resource.data.createdBy
+        && validNoticeStatus(request.resource.data.status)
+        && managesCircle(request.resource.data.targetCircleId);
+
+      allow delete: if isCoordinator()
+        && resource.data.createdBy == request.auth.uid;
+    }
+
+    match /public/placementOverview {
+      allow read: if true;
+      allow write: if isPlacementAdmin();
+    }
+  }
+}

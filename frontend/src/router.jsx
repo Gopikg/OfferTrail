@@ -9,6 +9,7 @@ import AddApplication from "./pages/AddApplication";
 import EditApplication from "./pages/EditApplication";
 import Gmail from "./pages/Gmail";
 import PlacementAdmin from "./pages/PlacementAdmin";
+import OfferCoordinator from "./pages/OfferCoordinator";
 
 const router = createBrowserRouter([
   {
@@ -61,6 +62,14 @@ const router = createBrowserRouter([
   element: (
     <ProtectedRoute>
       <PlacementAdmin />
+    </ProtectedRoute>
+  ),
+},
+{
+  path: "/offer-coordinator",
+  element: (
+    <ProtectedRoute>
+      <OfferCoordinator />
     </ProtectedRoute>
   ),
 }

@@ -7,6 +7,7 @@ import { getGmailMessages } from "../services/gmail";
 import Layout from "../components/Layout";
 import { useAuth } from "../context/AuthContext";
 import AIInsight from "../components/AIInsight";
+import JobNoticeFeed from "../components/JobNoticeFeed";
 import {
   getApplications,
   deleteApplication,
@@ -293,6 +294,8 @@ return (
 
 </div>
     {/* Statistics */}
+
+    {user && <JobNoticeFeed uid={user.uid} applications={applications} />}
 
     <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mt-8">
  <div className="bg-white border rounded-xl p-5 shadow-sm hover:shadow-md transition">
