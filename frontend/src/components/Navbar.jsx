@@ -2,13 +2,15 @@ import { useEffect, useState } from "react";
 import { Link, NavLink, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { logout } from "../services/auth";
+import JobNoticeNotification from "./JobNoticeNotification";
 
 function Navbar() {
-  const { user } = useAuth();
+  const { user, access, accessLoading } = useAuth();
   const navigate = useNavigate();
   const [theme, setTheme] = useState(
     () => localStorage.getItem("offertrail-theme") || "light"
   );
+  const isPlacementAdmin = !accessLoading && access.isPlacementAdmin;
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
@@ -22,19 +24,28 @@ function Navbar() {
 
   return (
     <nav className="topbar">
-      <Link to="/" className="brand">
+      <Link to={isPlacementAdmin ? "/placement-admin" : "/"} className="brand">
         <span className="brand-mark">↗</span>
         OfferTrail
       </Link>
 
       <div className="main-nav">
-        <NavLink to="/" end className="nav-link">Overview</NavLink>
+        {!isPlacementAdmin && <NavLink to="/" end className="nav-link">Overview</NavLink>}
 
         {user ? (
           <>
-            <NavLink to="/dashboard" className="nav-link">Applications</NavLink>
-            <NavLink to="/gmail" className="nav-link">Mail updates</NavLink>
-            <NavLink to="/offer-coordinator" className="nav-link">Publish notice</NavLink>
+            {isPlacementAdmin ? (
+              <NavLink to="/placement-admin" className="nav-link">Placement admin</NavLink>
+            ) : (
+              <>
+                <NavLink to="/dashboard" className="nav-link">Applications</NavLink>
+                <NavLink to="/gmail" className="nav-link">Mail updates</NavLink>
+                <JobNoticeNotification uid={user.uid} />
+                {!accessLoading && access.isCoordinator && (
+                  <NavLink to="/offer-coordinator" className="nav-link">Publish notice</NavLink>
+                )}
+              </>
+            )}
           </>
         ) : (
           <>

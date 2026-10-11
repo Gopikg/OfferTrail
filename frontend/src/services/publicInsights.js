@@ -1,8 +1,6 @@
 import {
   doc,
   getDoc,
-  serverTimestamp,
-  setDoc,
 } from "firebase/firestore";
 
 import db from "./firestore";
@@ -19,16 +17,4 @@ export async function isPlacementAdmin(uid) {
   const snapshot = await getDoc(doc(db, "admins", uid));
 
   return snapshot.exists();
-}
-
-export async function savePublicPlacementOverview(uid, overview) {
-  await setDoc(
-    doc(db, "public", "placementOverview"),
-    {
-      ...overview,
-      updatedAt: serverTimestamp(),
-      updatedBy: uid,
-    },
-    { merge: true }
-  );
 }

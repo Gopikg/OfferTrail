@@ -1,4 +1,4 @@
-function AIInsight({ application }) {
+function AIInsight() {
   return (
     <div className="mt-4 border rounded-lg p-4 bg-gray-50">
       <h4 className="font-bold mb-2">

@@ -1,7 +1,18 @@
-const API_URL = "http://localhost:8000";
+import { API_URL } from "./api";
 
-export async function getGmailMessages() {
-  const response = await fetch(`${API_URL}/gmail/messages`);
+async function authenticatedRequest(user, path, options = {}) {
+  if (!user) {
+    throw new Error("Please sign in first.");
+  }
+
+  const token = await user.getIdToken();
+  const response = await fetch(`${API_URL}${path}`, {
+    ...options,
+    headers: {
+      ...options.headers,
+      Authorization: `Bearer ${token}`,
+    },
+  });
 
   if (!response.ok) {
     const error = await response.json().catch(() => ({}));
@@ -11,5 +22,13 @@ export async function getGmailMessages() {
     );
   }
 
-  return await response.json();
+  return response.json();
+}
+
+export function getGmailMessages(user) {
+  return authenticatedRequest(user, "/gmail/messages");
+}
+
+export function startGmailConnection(user) {
+  return authenticatedRequest(user, "/gmail/connect", { method: "POST" });
 }

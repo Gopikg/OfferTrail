@@ -4,10 +4,15 @@ import Layout from "../components/Layout";
 import Toast from "../components/Toast";
 import { useAuth } from "../context/AuthContext";
 import {
-  getPublicPlacementOverview,
   isPlacementAdmin,
-  savePublicPlacementOverview,
 } from "../services/publicInsights";
+import {
+  createPlacementReport,
+  emptyMetrics,
+  getPlacementReports,
+  publishPlacementReport,
+  savePlacementReport,
+} from "../services/placementReports";
 import { getAllCircles } from "../services/jobNotices";
 import {
   approveCoordinatorRequest,
@@ -32,7 +37,9 @@ const fields = [
 
 function PlacementAdmin() {
   const { user } = useAuth();
-  const [overview, setOverview] = useState({});
+  const [overview, setOverview] = useState(emptyMetrics());
+  const [reports, setReports] = useState([]);
+  const [selectedReport, setSelectedReport] = useState(null);
   const [loading, setLoading] = useState(true);
   const [authorized, setAuthorized] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -51,6 +58,7 @@ function PlacementAdmin() {
   const [selectedCoordinatorId, setSelectedCoordinatorId] = useState("");
   const [coordinatorCircleId, setCoordinatorCircleId] = useState("");
   const [updatingCoordinator, setUpdatingCoordinator] = useState(false);
+  const [activeOperation, setActiveOperation] = useState(null);
 
   useEffect(() => {
     async function loadAdminWorkspace() {
@@ -61,15 +69,16 @@ function PlacementAdmin() {
         setAuthorized(admin);
 
         if (admin) {
-          const [publicOverview, pendingRequests, availableCircles, registeredStudents, approvedCoordinators] = await Promise.all([
-            getPublicPlacementOverview(),
+          const [savedReports, pendingRequests, availableCircles, registeredStudents, approvedCoordinators] = await Promise.all([
+            getPlacementReports(),
             getPendingCoordinatorRequests(),
             getAllCircles(),
             getStudentProfiles(),
             getCoordinatorProfiles(),
           ]);
 
-          setOverview(publicOverview || {});
+          setReports(savedReports);
+          if (savedReports[0]) selectReport(savedReports[0]);
           setRequests(pendingRequests);
           setCircles(availableCircles);
           setStudents(registeredStudents);
@@ -96,10 +105,43 @@ function PlacementAdmin() {
     loadAdminWorkspace();
   }, [user]);
 
+  function selectReport(report) {
+    setSelectedReport(report);
+    setOverview({ ...emptyMetrics(), ...(report.metrics || {}), activityByMonth: report.metrics?.activityByMonth || [] });
+  }
+
   function updateField(field, value) {
     setOverview((current) => ({
       ...current,
       [field]: value === "" ? "" : Number(value),
+    }));
+  }
+
+  function updateActivity(index, field, value) {
+    setOverview((current) => ({
+      ...current,
+      activityByMonth: (current.activityByMonth || []).map((entry, entryIndex) => (
+        entryIndex === index
+          ? { ...entry, [field]: field === "period" ? value : value === "" ? "" : Number(value) }
+          : entry
+      )),
+    }));
+  }
+
+  function addActivityMonth() {
+    setOverview((current) => ({
+      ...current,
+      activityByMonth: [
+        ...(current.activityByMonth || []),
+        { period: new Date().toISOString().slice(0, 7), companies: "", offers: "" },
+      ],
+    }));
+  }
+
+  function removeActivityMonth(index) {
+    setOverview((current) => ({
+      ...current,
+      activityByMonth: (current.activityByMonth || []).filter((_, entryIndex) => entryIndex !== index),
     }));
   }
 
@@ -244,16 +286,44 @@ function PlacementAdmin() {
     }
   }
 
-  async function handleSubmit(event) {
+  async function handleCreateReport() {
+    const year = new Date().getFullYear();
+    const report = {
+      academicYear: `${year}-${year + 1}`,
+      asOfDate: new Date().toISOString().slice(0, 10),
+      metrics: emptyMetrics(),
+    };
+    try {
+      setSaving(true);
+      const created = await createPlacementReport(user.uid, report);
+      const next = { id: created.id, ...report, status: "draft" };
+      setReports((current) => [next, ...current]);
+      selectReport(next);
+      setToast({ message: "Draft reporting period created.", type: "success" });
+    } catch (err) {
+      setToast({ message: err.message || "Unable to create reporting period.", type: "error" });
+    } finally { setSaving(false); }
+  }
+
+  async function handleSubmit(event, publish = false) {
     event.preventDefault();
+
+    if (!selectedReport) {
+      setToast({ message: "Create and select a reporting period first.", type: "error" });
+      return;
+    }
 
     try {
       setSaving(true);
-
-      await savePublicPlacementOverview(user.uid, overview);
+      const report = { ...selectedReport, metrics: overview };
+      if (publish) await publishPlacementReport(user.uid, report);
+      else await savePlacementReport(user.uid, report);
+      const updated = { ...report, status: publish ? "published" : selectedReport.status };
+      setReports((current) => current.map((item) => item.id === updated.id ? updated : item));
+      setSelectedReport(updated);
 
       setToast({
-        message: "Public placement overview published.",
+        message: publish ? "Report published to the public dashboard." : "Draft saved. It is not public yet.",
         type: "success",
       });
     } catch (err) {
@@ -269,12 +339,12 @@ function PlacementAdmin() {
 
   return (
     <Layout>
-      <div className="form-shell">
+      <div className="placement-admin-shell">
         <div className="page-heading">
           <p className="eyebrow">Placement cell</p>
-          <h1 className="page-title">Publish placement overview</h1>
+          <h1 className="page-title">Placement operations</h1>
           <p className="page-subtitle">
-            These figures are visible on OfferTrail’s public home page.
+            Keep your placement cell running from one focused workspace.
           </p>
         </div>
 
@@ -289,37 +359,138 @@ function PlacementAdmin() {
           </div>
         ) : (
           <>
+          <div className="admin-operations-list">
+          <section className="admin-operation-card">
+            <button type="button" className="admin-operation-toggle" onClick={() => setActiveOperation((current) => current === "reporting" ? null : "reporting")} aria-expanded={activeOperation === "reporting"}>
+              <span>Publish placement results</span><span aria-hidden="true">{activeOperation === "reporting" ? "−" : "+"}</span>
+            </button>
+          {activeOperation === "reporting" && <div className="admin-operation-content">
           <div className="surface form-card">
-            <form onSubmit={handleSubmit}>
-              {fields.map(([field, label]) => (
-                <label key={field} className="block">
-                  <span className="block text-sm font-semibold mb-2">{label}</span>
-                  <input
-                    type="number"
-                    min="0"
-                    step="any"
-                    value={overview[field] ?? ""}
-                    onChange={(event) => updateField(field, event.target.value)}
-                    required
-                  />
-                </label>
-              ))}
-
-              <button type="submit" disabled={saving} className="primary-button">
-                {saving ? "Publishing…" : "Publish overview"}
+            <div className="flex flex-wrap gap-3 mb-5">
+              <button type="button" className="secondary-button" disabled={saving} onClick={handleCreateReport}>
+                Create reporting period
               </button>
-            </form>
-          </div>
-
-          <section className="mt-8">
-            <div className="page-heading mb-4">
-              <p className="eyebrow">Access management</p>
-              <h2 className="text-2xl font-bold">Coordinator requests</h2>
-              <p className="page-subtitle">
-                Approving a request creates the coordinator role and assigns its first circle.
-              </p>
+              {reports.length > 0 && (
+                <label className="block flex-1">
+                  <span className="block text-sm font-semibold mb-2">Reporting period</span>
+                  <select
+                    value={selectedReport?.id || ""}
+                    onChange={(event) => selectReport(reports.find((report) => report.id === event.target.value))}
+                  >
+                    {reports.map((report) => (
+                      <option key={report.id} value={report.id}>
+                        {report.academicYear} — {report.status}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              )}
             </div>
 
+            {!selectedReport ? (
+              <p className="text-gray-500">Create a reporting period before entering placement figures.</p>
+            ) : <form onSubmit={(event) => handleSubmit(event)}>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-5">
+                <label className="block">
+                  <span className="block text-sm font-semibold mb-2">Academic year</span>
+                  <input value={selectedReport.academicYear || ""} placeholder="2026-2027" required
+                    onChange={(event) => setSelectedReport((current) => ({ ...current, academicYear: event.target.value }))} />
+                </label>
+                <label className="block">
+                  <span className="block text-sm font-semibold mb-2">Figures as of</span>
+                  <input type="date" value={selectedReport.asOfDate || ""} required
+                    onChange={(event) => setSelectedReport((current) => ({ ...current, asOfDate: event.target.value }))} />
+                </label>
+              </div>
+              <p className="text-sm text-gray-500 mb-4">
+                Status: <strong>{selectedReport.status}</strong>. Only a published report is visible publicly.
+              </p>
+              <div className="admin-report-metrics">
+                {fields.map(([field, label]) => (
+                  <label key={field} className="block">
+                    <span className="block text-sm font-semibold mb-2">{label}</span>
+                    <input
+                      type="number"
+                      min="0"
+                      step="any"
+                      value={overview[field] ?? ""}
+                      onChange={(event) => updateField(field, event.target.value)}
+                    />
+                  </label>
+                ))}
+              </div>
+
+              <div className="activity-editor">
+                <div>
+                  <span className="block text-sm font-semibold">Recruitment activity over time</span>
+                  <p className="text-sm text-gray-500 mt-1">
+                    Add monthly figures to publish the public recruitment trend chart.
+                  </p>
+                </div>
+
+                {(overview.activityByMonth || []).map((entry, index) => (
+                  <div key={`${entry.period}-${index}`} className="activity-editor-row">
+                    <label>
+                      <span>Month</span>
+                      <input
+                        type="month"
+                        value={entry.period || ""}
+                        onChange={(event) => updateActivity(index, "period", event.target.value)}
+                      />
+                    </label>
+                    <label>
+                      <span>Companies</span>
+                      <input
+                        type="number"
+                        min="0"
+                        value={entry.companies ?? ""}
+                        onChange={(event) => updateActivity(index, "companies", event.target.value)}
+                      />
+                    </label>
+                    <label>
+                      <span>Offers</span>
+                      <input
+                        type="number"
+                        min="0"
+                        value={entry.offers ?? ""}
+                        onChange={(event) => updateActivity(index, "offers", event.target.value)}
+                      />
+                    </label>
+                    <button
+                      type="button"
+                      className="danger-button activity-remove-button"
+                      onClick={() => removeActivityMonth(index)}
+                    >
+                      Remove
+                    </button>
+                  </div>
+                ))}
+
+                <button type="button" className="secondary-button" onClick={addActivityMonth}>
+                  Add month
+                </button>
+              </div>
+
+              <div className="flex flex-wrap gap-3">
+                <button type="submit" disabled={saving} className="secondary-button">
+                  {saving ? "Saving…" : "Save draft"}
+                </button>
+                <button type="button" disabled={saving} className="primary-button" onClick={(event) => handleSubmit(event, true)}>
+                  {saving ? "Publishing…" : "Publish report"}
+                </button>
+              </div>
+            </form>
+            }
+          </div>
+          </div>}
+          </section>
+
+          <section className="admin-operation-card">
+            <button type="button" className="admin-operation-toggle" onClick={() => setActiveOperation((current) => current === "requests" ? null : "requests")} aria-expanded={activeOperation === "requests"}>
+              <span>Coordinator requests</span><span aria-hidden="true">{activeOperation === "requests" ? "−" : "+"}</span>
+            </button>
+
+            {activeOperation === "requests" && <div className="admin-operation-content">
             {requests.length === 0 ? (
               <div className="surface p-5 text-gray-500">No pending coordinator requests.</div>
             ) : !circles.length ? (
@@ -367,17 +538,15 @@ function PlacementAdmin() {
                 ))}
               </div>
             )}
+            </div>}
           </section>
 
-          <section className="mt-8">
-            <div className="page-heading mb-4">
-              <p className="eyebrow">Coordinator coverage</p>
-              <h2 className="text-2xl font-bold">Coordinator circles</h2>
-              <p className="page-subtitle">
-                Update a coordinator’s publishing access as student groups change.
-              </p>
-            </div>
+          <section className="admin-operation-card">
+            <button type="button" className="admin-operation-toggle" onClick={() => setActiveOperation((current) => current === "coordinators" ? null : "coordinators")} aria-expanded={activeOperation === "coordinators"}>
+              <span>Coordinator circles</span><span aria-hidden="true">{activeOperation === "coordinators" ? "−" : "+"}</span>
+            </button>
 
+            {activeOperation === "coordinators" && <div className="admin-operation-content">
             <div className="surface form-card">
               {coordinators.length === 0 ? (
                 <p className="text-gray-500">No approved coordinators yet.</p>
@@ -432,17 +601,15 @@ function PlacementAdmin() {
                 </>
               )}
             </div>
+            </div>}
           </section>
 
-          <section className="mt-8">
-            <div className="page-heading mb-4">
-              <p className="eyebrow">Student groups</p>
-              <h2 className="text-2xl font-bold">Circles and membership</h2>
-              <p className="page-subtitle">
-                Create the groups coordinators publish to, then assign registered students.
-              </p>
-            </div>
+          <section className="admin-operation-card">
+            <button type="button" className="admin-operation-toggle" onClick={() => setActiveOperation((current) => current === "circles" ? null : "circles")} aria-expanded={activeOperation === "circles"}>
+              <span>Create a circle</span><span aria-hidden="true">{activeOperation === "circles" ? "−" : "+"}</span>
+            </button>
 
+            {activeOperation === "circles" && <div className="admin-operation-content">
             <div className="surface form-card">
               <form onSubmit={handleCreateCircle}>
                 <label>
@@ -467,9 +634,16 @@ function PlacementAdmin() {
                 </button>
               </form>
             </div>
+            </div>}
+          </section>
 
-            <div className="surface form-card mt-4">
-              <h3 className="text-xl font-bold mb-4">Assign a student</h3>
+          <section className="admin-operation-card">
+            <button type="button" className="admin-operation-toggle" onClick={() => setActiveOperation((current) => current === "membership" ? null : "membership")} aria-expanded={activeOperation === "membership"}>
+              <span>Assign student membership</span><span aria-hidden="true">{activeOperation === "membership" ? "−" : "+"}</span>
+            </button>
+
+            {activeOperation === "membership" && <div className="admin-operation-content">
+            <div className="surface form-card">
               {students.length === 0 ? (
                 <p className="text-gray-500">No registered student profiles yet.</p>
               ) : !circles.length ? (
@@ -523,7 +697,9 @@ function PlacementAdmin() {
                 </>
               )}
             </div>
+            </div>}
           </section>
+          </div>
           </>
         )}
 

@@ -43,6 +43,10 @@ service cloud.firestore {
       return status == 'pending' || status == 'approved' || status == 'rejected';
     }
 
+    function validReportingStatus(status) {
+      return status == 'draft' || status == 'published';
+    }
+
     match /users/{userId} {
       allow read: if isOwner(userId) || isPlacementAdmin();
       // Circle membership is placement-managed; clients must not grant themselves access.
@@ -103,9 +107,25 @@ service cloud.firestore {
         && resource.data.createdBy == request.auth.uid;
     }
 
+    match /placementReports/{reportId} {
+      // Drafts are operational data and must never be readable by the public.
+      allow read: if isPlacementAdmin();
+      allow create: if isPlacementAdmin()
+        && request.resource.data.status == 'draft';
+      allow update: if isPlacementAdmin()
+        && validReportingStatus(request.resource.data.status);
+      allow delete: if isPlacementAdmin();
+    }
+
     match /public/placementOverview {
       allow read: if true;
-      allow write: if isPlacementAdmin();
+      // The public projection can only reference a report that is published
+      // in this write batch (or was already published).
+      allow write: if isPlacementAdmin()
+        && request.resource.data.reportingPeriod.id is string
+        && getAfter(
+          /databases/$(database)/documents/placementReports/$(request.resource.data.reportingPeriod.id)
+        ).data.status == 'published';
     }
   }
 }

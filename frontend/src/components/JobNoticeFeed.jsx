@@ -102,7 +102,7 @@ function JobNoticeFeed({ uid, applications }) {
   });
 
   return (
-    <section className="job-notice-feed mt-8">
+    <section id="job-notices" className="job-notice-feed mt-8">
       <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-2 mb-4">
         <div>
           <p className="eyebrow">Targeted opportunities</p>

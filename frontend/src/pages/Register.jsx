@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 
 import Layout from "../components/Layout";
 import Toast from "../components/Toast";
-import { register } from "../services/auth";
+import { register, signInWithGoogleAsStudent } from "../services/auth";
 import {
   createStudentProfile,
   requestCoordinatorAccess,
@@ -17,6 +17,7 @@ function Register() {
   const [roleIntent, setRoleIntent] = useState("student");
   const [registering, setRegistering] = useState(false);
   const [toast, setToast] = useState(null);
+  const [googleLoading, setGoogleLoading] = useState(false);
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -43,9 +44,21 @@ function Register() {
     }
   }
 
+  async function handleGoogleSignIn() {
+    try {
+      setGoogleLoading(true);
+      await signInWithGoogleAsStudent();
+      navigate("/dashboard");
+    } catch (err) {
+      setToast({ message: err.message, type: "error" });
+    } finally {
+      setGoogleLoading(false);
+    }
+  }
+
   return (
-    <Layout>
-      <div className="form-shell">
+    <Layout centered>
+      <div className="form-shell auth-page">
         <div className="page-heading">
           <p className="eyebrow">OfferTrail workspace</p>
           <h1 className="page-title">Create your workspace</h1>
@@ -109,6 +122,20 @@ function Register() {
         >
           {registering ? "Creating account…" : "Register"}
         </button>
+
+        {roleIntent === "student" && (
+          <>
+            <div className="auth-divider"><span>or</span></div>
+            <button
+              type="button"
+              className="google-button"
+              disabled={googleLoading}
+              onClick={handleGoogleSignIn}
+            >
+              {googleLoading ? "Connecting to Google…" : "Continue with Google"}
+            </button>
+          </>
+        )}
       </form>
 
       {toast && (

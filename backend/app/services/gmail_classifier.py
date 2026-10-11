@@ -39,7 +39,7 @@ BODY_SIGNAL_PATTERNS = [
 ]
 
 
-def is_job_email(subject, sender, body=""):
+def is_job_email(subject, sender, body="", extracted=None):
     subject = subject or ""
 
     if any(pattern.search(subject) for pattern in NON_APPLICATION_SUBJECT_PATTERNS):
@@ -50,4 +50,11 @@ def is_job_email(subject, sender, body=""):
     if any(signal in subject_lower for signal in SUBJECT_SIGNALS):
         return True
 
-    return any(pattern.search(body or "") for pattern in BODY_SIGNAL_PATTERNS)
+    if any(pattern.search(body or "") for pattern in BODY_SIGNAL_PATTERNS):
+        return True
+
+    # The extractor can identify application mail from an explicitly named
+    # employer and role even when the template avoids our conventional phrases.
+    # This is intentionally a conjunction to avoid treating ordinary company
+    # announcements as a job update.
+    return bool(extracted and extracted.get("company") and extracted.get("role"))

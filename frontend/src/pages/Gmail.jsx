@@ -1,9 +1,13 @@
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 
 import Layout from "../components/Layout";
 import Toast from "../components/Toast";
 import { useAuth } from "../context/AuthContext";
+import {
+  getGmailMessages,
+  startGmailConnection,
+} from "../services/gmail";
 import {
   addApplication,
   getApplications,
@@ -19,7 +23,18 @@ function Gmail() {
   const [toast, setToast] = useState(null);
 
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { user } = useAuth();
+  const gmailResult = searchParams.get("gmail");
+  const callbackToasts = {
+    connected: { message: "Gmail connected successfully.", type: "success" },
+    "expired-session": { message: "Gmail connection timed out. Please try again.", type: "error" },
+    "invalid-session": { message: "Gmail connection could not be verified. Please try again.", type: "error" },
+    "connection-failed": { message: "Gmail could not be connected. Please try again.", type: "error" },
+  };
+  const callbackToast = gmailResult
+    ? callbackToasts[gmailResult] || callbackToasts["connection-failed"]
+    : null;
 
   useEffect(() => {
     async function loadData() {
@@ -29,31 +44,13 @@ function Gmail() {
       }
 
       try {
-        const token = await user.getIdToken();
-
         const [gmailResponse, existingApplications] =
           await Promise.all([
-            fetch("http://localhost:8000/gmail/messages", {
-              headers: {
-                Authorization: `Bearer ${token}`,
-              },
-            }),
+            getGmailMessages(user),
             getApplications(user.uid),
           ]);
 
-        if (!gmailResponse.ok) {
-          const errorData =
-            await gmailResponse.json().catch(() => null);
-
-          throw new Error(
-            errorData?.detail ||
-              "Failed to fetch Gmail messages."
-          );
-        }
-
-        const data = await gmailResponse.json();
-
-        setEmails(data.messages || []);
+        setEmails(gmailResponse.messages || []);
         setApplications(existingApplications || []);
 
       } catch (err) {
@@ -85,29 +82,7 @@ function Gmail() {
     try {
       setConnecting(true);
 
-      const token = await user.getIdToken();
-
-      const response = await fetch(
-        "http://localhost:8000/gmail/connect",
-        {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        }
-      );
-
-      if (!response.ok) {
-        const errorData =
-          await response.json().catch(() => null);
-
-        throw new Error(
-          errorData?.detail ||
-            "Failed to start Gmail connection."
-        );
-      }
-
-      const data = await response.json();
+      const data = await startGmailConnection(user);
 
       window.location.href = data.authorization_url;
 
@@ -320,7 +295,8 @@ function Gmail() {
   ).length;
   const readyNewEmails = reviewEmails.filter(
     (email) => !findMatchingApplication(email) &&
-      email.extracted?.company && email.extracted?.role && email.extracted?.stage
+      email.extracted?.company && email.extracted?.role &&
+      email.extracted?.stage && email.extracted?.confidence === "high"
   );
 
   async function handleAddAllNew() {
@@ -480,6 +456,11 @@ function Gmail() {
                             "Not detected"}
                         </p>
 
+                        <p>
+                          <strong>Detection confidence:</strong>{" "}
+                          {email.extracted.confidence || "low"}
+                        </p>
+
                       </div>
                     )}
 
@@ -526,7 +507,8 @@ function Gmail() {
                         {savingEmailId === email.id
                           ? "Adding..."
                           : email.extracted?.company &&
-                              email.extracted?.role
+                              email.extracted?.role &&
+                              email.extracted?.confidence === "high"
                             ? "Add to Dashboard"
                             : "Review and Add"}
                       </button>
@@ -540,11 +522,14 @@ function Gmail() {
         </div>
       )}
 
-      {toast && (
+      {(toast || callbackToast) && (
         <Toast
-          message={toast.message}
-          type={toast.type}
-          onClose={() => setToast(null)}
+          message={(toast || callbackToast).message}
+          type={(toast || callbackToast).type}
+          onClose={() => {
+            setToast(null);
+            if (callbackToast) navigate("/gmail", { replace: true });
+          }}
         />
       )}
       </div>

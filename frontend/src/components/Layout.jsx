@@ -1,10 +1,10 @@
 import Navbar from "./Navbar";
 
-function Layout({ children }) {
+function Layout({ children, centered = false }) {
   return (
     <div className="app-shell">
       <Navbar />
-      <main className="workspace">
+      <main className={`workspace${centered ? " workspace-centered" : ""}`}>
         {children}
       </main>
     </div>

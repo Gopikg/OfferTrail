@@ -1,6 +1,10 @@
+import { useNavigate } from "react-router-dom";
+
 import Button from "./Button";
 
 function Hero() {
+  const navigate = useNavigate();
+
   return (
     <section className="hero-panel">
       <span className="eyebrow text-cyan-100">Application operations, simplified</span>
@@ -14,9 +18,15 @@ function Hero() {
       </p>
 
       <div className="hero-actions">
-        <Button>Get Started</Button>
+        <Button onClick={() => navigate("/get-started")}>Get Started</Button>
 
-        <Button>View Statistics</Button>
+        <button
+          type="button"
+          className="secondary-button"
+          onClick={() => document.getElementById("placement-statistics")?.scrollIntoView({ behavior: "smooth" })}
+        >
+          View Statistics
+        </button>
       </div>
 
     </section>

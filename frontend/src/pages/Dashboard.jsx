@@ -7,7 +7,7 @@ import { getGmailMessages } from "../services/gmail";
 import Layout from "../components/Layout";
 import { useAuth } from "../context/AuthContext";
 import AIInsight from "../components/AIInsight";
-import JobNoticeFeed from "../components/JobNoticeFeed";
+import ResumeManager from "../components/ResumeManager";
 import {
   getApplications,
   deleteApplication,
@@ -33,6 +33,8 @@ function Dashboard() {
   const [gmailMessages, setGmailMessages] = useState([]);
   const [gmailLoading, setGmailLoading] = useState(false);
   const [gmailConnected, setGmailConnected] = useState(false);
+  // The Gmail workflow remains available at /gmail, but is intentionally not surfaced on the dashboard.
+  const showGmailOnDashboard = false;
   useEffect(() => {
   if (!toast) return;
 
@@ -229,7 +231,7 @@ async function handleGmailSync() {
   setGmailLoading(true);
 
   try {
-    const data = await getGmailMessages();
+    const data = await getGmailMessages(user);
 
     setGmailMessages(data.messages || []);
     setGmailConnected(true);
@@ -283,19 +285,40 @@ return (
       + Add Application
     </button>
 
-    <button
-      onClick={() => navigate("/gmail")}
-      className="secondary-button"
-    >
-      Import from Gmail
-    </button>
+    {showGmailOnDashboard && (
+      <button
+        onClick={() => navigate("/gmail")}
+        className="secondary-button"
+      >
+        Import from Gmail
+      </button>
+    )}
 
   </div>
 
 </div>
-    {/* Statistics */}
 
-    {user && <JobNoticeFeed uid={user.uid} applications={applications} />}
+    <section className="dashboard-stage-chart mt-8">
+      <h2>Applications by Stage</h2>
+
+      <ResponsiveContainer width="100%" height={340}>
+        <BarChart data={chartData} margin={{ top: 18, right: 12, left: -18, bottom: 0 }}>
+          <defs>
+            <linearGradient id="stageBar" x1="0" x2="0" y1="0" y2="1">
+              <stop offset="0%" stopColor="#00a1e0" />
+              <stop offset="100%" stopColor="#0176d3" />
+            </linearGradient>
+          </defs>
+          <CartesianGrid stroke="var(--chart-grid)" strokeDasharray="3 3" vertical={false} />
+          <XAxis dataKey="stage" tick={{ fill: "var(--chart-text)" }} axisLine={false} tickLine={false} />
+          <YAxis allowDecimals={false} tick={{ fill: "var(--chart-text)" }} axisLine={false} tickLine={false} />
+          <Tooltip />
+          <Bar dataKey="count" fill="url(#stageBar)" radius={[7, 7, 0, 0]} maxBarSize={58} />
+        </BarChart>
+      </ResponsiveContainer>
+    </section>
+
+    {/* Statistics */}
 
     <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mt-8">
  <div className="bg-white border rounded-xl p-5 shadow-sm hover:shadow-md transition">
@@ -375,24 +398,10 @@ return (
 
     </div>
 
-    {/* Chart */}
+    {user && <ResumeManager uid={user.uid} />}
 
-    <div className="mt-10 border p-6 rounded">
-      <h2 className="text-2xl font-bold mb-6">
-        Applications by Stage
-      </h2>
-
-      <ResponsiveContainer width="100%" height={300}>
-        <BarChart data={chartData}>
-          <CartesianGrid stroke="var(--chart-grid)" strokeDasharray="3 3" />
-          <XAxis dataKey="stage" tick={{ fill: "var(--chart-text)" }} axisLine={{ stroke: "var(--chart-grid)" }} />
-          <YAxis allowDecimals={false} tick={{ fill: "var(--chart-text)" }} axisLine={{ stroke: "var(--chart-grid)" }} />
-          <Tooltip />
-          <Bar dataKey="count" fill="var(--chart-bar)" radius={[4, 4, 0, 0]} />
-        </BarChart>
-      </ResponsiveContainer>
-    </div>
-    {/* Gmail Integration */}
+    {/* Gmail dashboard controls are retained for future use, but hidden from students. */}
+    {showGmailOnDashboard && <>
 
 <div className="mt-10 border rounded-xl p-6 bg-white shadow-sm">
 
@@ -496,6 +505,7 @@ return (
   )}
 
 </div>
+    </>}
 
     {/* Upcoming Deadlines */}
 
