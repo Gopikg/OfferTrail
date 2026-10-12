@@ -1,729 +1,114 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import Toast from "../components/Toast";
-import ConfirmModal from "../components/ConfirmModal";
-import { getGmailMessages } from "../services/gmail";
-
-import Layout from "../components/Layout";
-import { useAuth } from "../context/AuthContext";
-import AIInsight from "../components/AIInsight";
-import ResumeManager from "../components/ResumeManager";
 import {
-  getApplications,
-  deleteApplication,
-} from "../services/firestore";
-
-import {
-  BarChart,
   Bar,
+  BarChart,
+  CartesianGrid,
+  ResponsiveContainer,
+  Tooltip,
   XAxis,
   YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
 } from "recharts";
+
+import Layout from "../components/Layout";
+import ResumeManager from "../components/ResumeManager";
+import { useAuth } from "../context/AuthContext";
+import { getApplications } from "../services/firestore";
+
+const STAGES = ["Applied", "OA", "Interview", "HR", "Offer", "Rejected"];
 
 function Dashboard() {
   const { user } = useAuth();
   const navigate = useNavigate();
-
   const [applications, setApplications] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [toast, setToast] = useState(null);
-  const [gmailMessages, setGmailMessages] = useState([]);
-  const [gmailLoading, setGmailLoading] = useState(false);
-  const [gmailConnected, setGmailConnected] = useState(false);
-  // The Gmail workflow remains available at /gmail, but is intentionally not surfaced on the dashboard.
-  const showGmailOnDashboard = false;
-  // Keep the insight component and its integration ready for a future release.
-  const showAiInsights = false;
-  useEffect(() => {
-  if (!toast) return;
-
-  const timer = setTimeout(() => {
-    setToast(null);
-  }, 3000);
-
-  return () => clearTimeout(timer);
-}, [toast]);
-
-const [deleteTarget, setDeleteTarget] = useState(null);
-
-  const [searchTerm, setSearchTerm] = useState("");
-  const [stageFilter, setStageFilter] = useState("All");
-
-const filteredApplications = applications
-  .filter((application) => {
-    const search = searchTerm.toLowerCase();
-
-    const matchesSearch =
-      application.company.toLowerCase().includes(search) ||
-      application.role.toLowerCase().includes(search);
-
-    const matchesStage =
-      stageFilter === "All" ||
-      application.stage === stageFilter;
-
-    return matchesSearch && matchesStage;
-  })
-  .sort((a, b) => {
-    if (!a.deadline) return 1;
-    if (!b.deadline) return -1;
-
-    return new Date(a.deadline) - new Date(b.deadline);
-  });
-
-  const totalApplications = applications.length;
-
-  const appliedCount = applications.filter(
-    (application) => application.stage === "Applied"
-  ).length;
-
-  const oaCount = applications.filter(
-    (application) => application.stage === "OA"
-  ).length;
-
-  const interviewCount = applications.filter(
-    (application) => application.stage === "Interview"
-  ).length;
-
-  const hrCount = applications.filter(
-    (application) => application.stage === "HR"
-  ).length;
-
-  const offerCount = applications.filter(
-    (application) => application.stage === "Offer"
-  ).length;
-
-  const rejectedCount = applications.filter(
-    (application) => application.stage === "Rejected"
-  ).length;
-
-  const activeApplications =
-  totalApplications - rejectedCount - offerCount;
-
-  const chartData = [
-  { stage: "Applied", count: appliedCount },
-  { stage: "OA", count: oaCount },
-  { stage: "Interview", count: interviewCount },
-  { stage: "HR", count: hrCount },
-  { stage: "Offer", count: offerCount },
-  { stage: "Rejected", count: rejectedCount },
-];
-const upcomingApplications = applications
-  .filter((application) => {
-    if (!application.deadline) return false;
-
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-
-    const deadline = new Date(application.deadline);
-    deadline.setHours(0, 0, 0, 0);
-
-    return deadline >= today;
-  })
-  .sort(
-    (a, b) =>
-      new Date(a.deadline) - new Date(b.deadline)
-  );
 
   useEffect(() => {
     async function loadApplications() {
       if (!user) return;
 
       try {
-        const data = await getApplications(user.uid);
-        setApplications(data);
-      } catch (err) {
-        console.error("Failed to load applications:", err);
-      } finally {
-        setLoading(false);
+        setApplications(await getApplications(user.uid));
+      } catch (error) {
+        console.error("Failed to load applications:", error);
       }
     }
 
     loadApplications();
   }, [user]);
 
+  const counts = useMemo(() => (
+    Object.fromEntries(STAGES.map((stage) => [
+      stage,
+      applications.filter((application) => application.stage === stage).length,
+    ]))
+  ), [applications]);
 
+  const chartData = STAGES.map((stage) => ({ stage, count: counts[stage] }));
+  const totalApplications = applications.length;
+  const activeApplications = totalApplications - counts.Offer - counts.Rejected;
 
-async function handleDelete(applicationId) {
-  try {
-    await deleteApplication(user.uid, applicationId);
-
-    setApplications((currentApplications) =>
-      currentApplications.filter(
-        (application) => application.id !== applicationId
-      )
-    );
-
-    setDeleteTarget(null);
-
-    setToast({
-      message: "Application deleted!",
-      type: "success",
-    });
-  } catch (err) {
-    console.error("Failed to delete application:", err);
-
-    setDeleteTarget(null);
-
-    setToast({
-      message: "Failed to delete application.",
-      type: "error",
-    });
-  }
-}
-
-function getStageStyle(stage) {
-  switch (stage) {
-    case "Applied":
-      return "bg-blue-100 text-blue-800";
-
-    case "OA":
-      return "bg-purple-100 text-purple-800";
-
-    case "Interview":
-      return "bg-yellow-100 text-yellow-800";
-
-    case "HR":
-      return "bg-orange-100 text-orange-800";
-
-    case "Offer":
-      return "bg-green-100 text-green-800";
-
-    case "Rejected":
-      return "bg-red-100 text-red-800";
-
-    default:
-      return "bg-gray-100 text-gray-800";
-  }
-}
-
-function getDeadlineStatus(deadline) {
-  if (!deadline) {
-    return "No deadline";
+  function openStageApplications(bar) {
+    const stage = bar?.payload?.stage || bar?.stage;
+    if (STAGES.includes(stage)) {
+      navigate(`/applications?stage=${encodeURIComponent(stage)}`);
+    }
   }
 
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-
-  const deadlineDate = new Date(deadline);
-  deadlineDate.setHours(0, 0, 0, 0);
-
-  const difference =
-    deadlineDate.getTime() - today.getTime();
-
-  const daysRemaining =
-    Math.ceil(difference / (1000 * 60 * 60 * 24));
-
-  if (daysRemaining < 0) {
-    return "Overdue";
-  }
-
-  if (daysRemaining === 0) {
-    return "Due today";
-  }
-
-  return `${daysRemaining} day${
-    daysRemaining === 1 ? "" : "s"
-  } remaining`;
-}
-
-async function handleGmailSync() {
-  setGmailLoading(true);
-
-  try {
-    const data = await getGmailMessages(user);
-
-    setGmailMessages(data.messages || []);
-    setGmailConnected(true);
-
-    setToast({
-      message: `Gmail synced: ${data.count} messages found.`,
-      type: "success",
-    });
-  } catch (err) {
-    console.error("Failed to sync Gmail:", err);
-
-    setGmailConnected(false);
-
-    setToast({
-      message: err.message || "Failed to sync Gmail.",
-      type: "error",
-    });
-  } finally {
-    setGmailLoading(false);
-  }
-}
-const jobEmails = gmailMessages.filter(
-  (message) => message.isJobEmail
-);
-
-return (
-  <Layout>
-    <div className="dashboard-page">
-
-    {/* Dashboard Header */}
-
-<div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-
-  <div>
-    <p className="eyebrow">Recruiting operations</p>
-    <h1 className="page-title">Application dashboard</h1>
-
-    {user && (
-      <p className="text-gray-500 mt-1">
-        Welcome back, {user.email}
-      </p>
-    )}
-  </div>
-
-  <div className="flex flex-col sm:flex-row gap-3">
-
-    <button
-      onClick={() => navigate("/applications/new")}
-      className="primary-button"
-    >
-      + Add Application
-    </button>
-
-    {showGmailOnDashboard && (
-      <button
-        onClick={() => navigate("/gmail")}
-        className="secondary-button"
-      >
-        Import from Gmail
-      </button>
-    )}
-
-  </div>
-
-</div>
-
-    <section className="dashboard-stage-chart mt-8">
-      <h2>Applications by Stage</h2>
-
-      <ResponsiveContainer width="100%" height={340}>
-        <BarChart data={chartData} margin={{ top: 18, right: 12, left: -18, bottom: 0 }}>
-          <defs>
-            <linearGradient id="stageBar" x1="0" x2="0" y1="0" y2="1">
-              <stop offset="0%" stopColor="#00a1e0" />
-              <stop offset="100%" stopColor="#0176d3" />
-            </linearGradient>
-          </defs>
-          <CartesianGrid stroke="var(--chart-grid)" strokeDasharray="3 3" vertical={false} />
-          <XAxis dataKey="stage" tick={{ fill: "var(--chart-text)" }} axisLine={false} tickLine={false} />
-          <YAxis allowDecimals={false} tick={{ fill: "var(--chart-text)" }} axisLine={false} tickLine={false} />
-          <Tooltip />
-          <Bar dataKey="count" fill="url(#stageBar)" radius={[7, 7, 0, 0]} maxBarSize={58} />
-        </BarChart>
-      </ResponsiveContainer>
-    </section>
-
-    {/* Statistics */}
-
-    <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mt-8">
- <div className="bg-white border rounded-xl p-5 shadow-sm hover:shadow-md transition">
-    <p className="text-gray-500">
-      Total Applications
-    </p>
-
-    <p className="text-3xl font-bold mt-2">
-      {totalApplications}
-    </p>
-  </div>
-
- <div className="bg-white border rounded-xl p-5 shadow-sm hover:shadow-md transition">
-    <p className="text-gray-500">
-      Active Applications
-    </p>
-
-    <p className="text-3xl font-bold mt-2">
-      {activeApplications}
-    </p>
-  </div>
-
-  <div className="bg-white border rounded-xl p-5 shadow-sm hover:shadow-md transition">
-    <p className="text-gray-500">
-      Offers
-    </p>
-
-    <p className="text-3xl font-bold mt-2">
-      {offerCount}
-    </p>
-  </div>
-
-  <div className="bg-white border rounded-xl p-5 shadow-sm hover:shadow-md transition">
-    <p className="text-gray-500">
-      Rejected
-    </p>
-
-    <p className="text-3xl font-bold mt-2">
-      {rejectedCount}
-    </p>
-  </div>
-
-</div>
-
-    <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mt-8">
-
-
-      <div className="border p-4 rounded">
-        <h3 className="text-gray-500">Applied</h3>
-        <p className="text-3xl font-bold">{appliedCount}</p>
-      </div>
-
-      <div className="border p-4 rounded">
-        <h3 className="text-gray-500">Online Assessments</h3>
-        <p className="text-3xl font-bold">{oaCount}</p>
-      </div>
-
-      <div className="border p-4 rounded">
-        <h3 className="text-gray-500">Interviews</h3>
-        <p className="text-3xl font-bold">{interviewCount}</p>
-      </div>
-
-      <div className="border p-4 rounded">
-        <h3 className="text-gray-500">HR</h3>
-        <p className="text-3xl font-bold">{hrCount}</p>
-      </div>
-
-      <div className="border p-4 rounded">
-        <h3 className="text-gray-500">Offers</h3>
-        <p className="text-3xl font-bold">{offerCount}</p>
-      </div>
-
-      <div className="border p-4 rounded">
-        <h3 className="text-gray-500">Rejected</h3>
-        <p className="text-3xl font-bold">{rejectedCount}</p>
-      </div>
-
-    </div>
-
-    {user && <ResumeManager uid={user.uid} />}
-
-    {/* Gmail dashboard controls are retained for future use, but hidden from students. */}
-    {showGmailOnDashboard && <>
-
-<div className="mt-10 border rounded-xl p-6 bg-white shadow-sm">
-
-  <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-
-    <div>
-      <h2 className="text-2xl font-bold">
-        Gmail Integration
-      </h2>
-
-      <p className="text-gray-500 mt-1">
-        Sync your Gmail inbox to find recruitment-related emails.
-      </p>
-
-      {gmailConnected && (
-        <p className="text-sm text-green-600 font-medium mt-2">
-          Gmail connected
-        </p>
-      )}
-    </div>
-
-    <button
-      onClick={handleGmailSync}
-      disabled={gmailLoading}
-      className="primary-button disabled:bg-gray-400"
-    >
-      {gmailLoading ? "Syncing..." : "Sync Gmail"}
-    </button>
-{jobEmails.length > 0 && (
-  <div className="mt-6">
-
-    <h3 className="text-lg font-bold mb-3">
-      Potential Job Emails
-    </h3>
-
-    <div className="space-y-3">
-
-      {jobEmails.map((message) => (
-        <div
-          key={message.id}
-          className="border rounded-lg p-4"
-        >
-
-          <p className="font-medium">
-            {message.subject || "No subject"}
-          </p>
-
-          <p className="text-sm text-gray-500 mt-1">
-            From: {message.from || "Unknown sender"}
-          </p>
-
-          <span className="inline-block mt-2 text-xs bg-green-100 text-green-800 px-2 py-1 rounded-full">
-            Potential job email
-          </span>
-           <br />
-        <button
-  onClick={() =>
-    navigate("/applications/new", {
-      state: {
-        emailSubject: message.subject,
-        emailSender: message.from,
-      },
-    })
-  }
-  className="mt-3 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg"
->
-  Import to Application
-</button>
-        </div>
-      ))}
-
-    </div>
-
-  </div>
-)}
-  </div>
-
-  {gmailMessages.length > 0 && (
-    <div className="mt-6 space-y-3">
-
-      <h3 className="font-bold">
-        Recent Emails
-      </h3>
-
-      {gmailMessages.map((message) => (
-        <div
-          key={message.id}
-          className="border rounded-lg p-4"
-        >
-          <p className="font-medium">
-            {message.subject || "No subject"}
-          </p>
-
-          <p className="text-sm text-gray-500 mt-1">
-            From: {message.from || "Unknown sender"}
-          </p>
-        </div>
-      ))}
-
-    </div>
-  )}
-
-</div>
-    </>}
-
-    {/* Upcoming Deadlines */}
-
-    <div className="mt-10">
-      <h2 className="text-2xl font-bold mb-4">
-        Upcoming Deadlines
-      </h2>
-
-      {upcomingApplications.length === 0 ? (
-        <p className="text-gray-500">
-          No upcoming deadlines.
-        </p>
-      ) : (
-        <div className="space-y-3">
-
-          {upcomingApplications.slice(0, 5).map((application) => (
-            <div
-              key={application.id}
-              className="border p-4 rounded-lg"
-            >
-              <h3 className="font-bold">
-                {application.company}
-              </h3>
-
-              <p className="text-gray-600">
-                {application.role}
-              </p>
-
-<p className="text-sm text-gray-500 mt-2">
-  Deadline: {application.deadline || "No deadline"}
-</p>
-
-{application.deadline && (
-  <p
-    className={`text-sm font-medium mt-1 ${
-      getDeadlineStatus(application.deadline) === "Overdue"
-        ? "text-red-600"
-        : getDeadlineStatus(application.deadline) === "Due today"
-        ? "text-orange-600"
-        : "text-green-600"
-    }`}
-  >
-    {getDeadlineStatus(application.deadline)}
-  </p>
-)}
-
-
-              <button
-                onClick={() =>
-                  navigate(`/applications/edit/${application.id}`)
-                }
-                className="mt-2 text-blue-600"
-              >
-                View / Edit
-              </button>
-            </div>
-          ))}
-
-        </div>
-      )}
-    </div>
-
-    {/* Applications */}
-
-    <h2 className="text-2xl font-bold mt-8 mb-4">
-      Your Applications
-    </h2>
-
-    {/* Search and Filter */}
-
-    <div className="flex flex-col md:flex-row gap-4 mb-6">
-
-      <input
-        type="text"
-        placeholder="Search by company or role..."
-        value={searchTerm}
-        onChange={(e) => setSearchTerm(e.target.value)}
-        className="border p-2 rounded w-full"
-      />
-
-      <select
-        value={stageFilter}
-        onChange={(e) => setStageFilter(e.target.value)}
-        className="border p-2 rounded"
-      >
-        <option value="All">All Stages</option>
-        <option value="Applied">Applied</option>
-        <option value="OA">OA</option>
-        <option value="Interview">Interview</option>
-        <option value="HR">HR</option>
-        <option value="Offer">Offer</option>
-        <option value="Rejected">Rejected</option>
-      </select>
-
-    </div>
-
-    {/* Application List */}
-
-    {loading ? (
-  <div className="border rounded-lg p-8 text-center">
-    <p className="text-gray-500">
-      Loading your applications...
-    </p>
-  </div>
-) : applications.length === 0 ? (
-  <div className="border rounded-lg p-8 text-center">
-    <h3 className="text-xl font-bold mb-2">
-      No applications yet
-    </h3>
-
-    <p className="text-gray-500 mb-4">
-      Start tracking your job applications by adding your first one.
-    </p>
-
-    <button
-      onClick={() => navigate("/applications/new")}
-      className="bg-blue-600 text-white px-5 py-2 rounded"
-    >
-      + Add Your First Application
-    </button>
-  </div>
-) : filteredApplications.length === 0 ? (
-  <div className="border rounded-lg p-6 text-center">
-
-    <p className="text-gray-500 mb-4">
-      No applications match your search.
-    </p>
-
-    <button
-      onClick={() => {
-        setSearchTerm("");
-        setStageFilter("All");
-      }}
-      className="bg-gray-700 text-white px-4 py-2 rounded"
-    >
-      Clear Filters
-    </button>
-
-  </div>
-) : (
-      <div className="space-y-4">
-
-        {filteredApplications.map((application) => (
-          <div
-            key={application.id}
-            className="bg-white border rounded-xl p-5 shadow-sm hover:shadow-md transition"
-          >
-
-            <h3 className="text-xl font-bold">
-              {application.company}
-            </h3>
-
-           <p className="text-gray-600 mt-1">
-              {application.role}
-            </p>
-
-           <span
-  className={`inline-block mt-2 px-3 py-1 rounded-full text-sm font-medium ${getStageStyle(
-    application.stage
-  )}`}
->
-  {application.stage}
-</span>
-
-            <p className="text-sm text-gray-500 mt-2">
-              Deadline: {application.deadline || "No deadline"}
-            </p>
-
-            {application.notes && (
-              <p className="mt-2 text-sm text-gray-600">
-                Notes: {application.notes}
-              </p>
-            )}
-
-             {showAiInsights && <AIInsight application={application} />}
-
-            <button
-              onClick={() =>
-                navigate(`/applications/edit/${application.id}`)
-              }
-              className="mt-4 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg"
-            >
-              Edit
-            </button>
-
-            <button
-              onClick={() => setDeleteTarget(application.id)}
-              className="mt-3 ml-2 bg-red-600 text-white px-4 py-2 rounded"
-            >
-              Delete
-            </button>
-
+  return (
+    <Layout>
+      <div className="dashboard-page">
+        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+          <div>
+            <p className="eyebrow">Recruiting operations</p>
+            <h1 className="page-title">Application dashboard</h1>
+            {user && <p className="text-gray-500 mt-1">Welcome back, {user.email}</p>}
           </div>
-        ))}
+          <div className="flex gap-3">
+            <button onClick={() => navigate("/applications/new")} className="primary-button">+ Add application</button>
+            <button onClick={() => navigate("/applications")} className="secondary-button">Detailed list</button>
+          </div>
+        </div>
 
+        <section className="dashboard-stage-chart mt-8">
+          <h2>Applications by stage</h2>
+          <p className="text-sm text-gray-500 mt-1">Select a bar to view applications at that stage.</p>
+          <ResponsiveContainer width="100%" height={340}>
+            <BarChart data={chartData} margin={{ top: 18, right: 12, left: -18, bottom: 0 }}>
+              <defs>
+                <linearGradient id="stageBar" x1="0" x2="0" y1="0" y2="1">
+                  <stop offset="0%" stopColor="#00a1e0" />
+                  <stop offset="100%" stopColor="#0176d3" />
+                </linearGradient>
+              </defs>
+              <CartesianGrid stroke="var(--chart-grid)" strokeDasharray="3 3" vertical={false} />
+              <XAxis dataKey="stage" tick={{ fill: "var(--chart-text)" }} axisLine={false} tickLine={false} />
+              <YAxis allowDecimals={false} tick={{ fill: "var(--chart-text)" }} axisLine={false} tickLine={false} />
+              <Tooltip />
+              <Bar dataKey="count" fill="url(#stageBar)" radius={[7, 7, 0, 0]} maxBarSize={82} cursor="pointer" onClick={openStageApplications} />
+            </BarChart>
+          </ResponsiveContainer>
+        </section>
+
+        <div className="grid grid-cols-1 gap-4 mt-8 md:grid-cols-4">
+          <div className="bg-white border rounded-xl p-5 shadow-sm"><p className="text-gray-500">Total applications</p><p className="text-3xl font-bold mt-2">{totalApplications}</p></div>
+          <div className="bg-white border rounded-xl p-5 shadow-sm"><p className="text-gray-500">Active applications</p><p className="text-3xl font-bold mt-2">{activeApplications}</p></div>
+          <div className="bg-white border rounded-xl p-5 shadow-sm"><p className="text-gray-500">Offers</p><p className="text-3xl font-bold mt-2">{counts.Offer}</p></div>
+          <div className="bg-white border rounded-xl p-5 shadow-sm"><p className="text-gray-500">Rejected</p><p className="text-3xl font-bold mt-2">{counts.Rejected}</p></div>
+        </div>
+
+        <div className="grid grid-cols-2 gap-4 mt-8 md:grid-cols-3">
+          {STAGES.map((stage) => (
+            <button key={stage} onClick={() => navigate(`/applications?stage=${encodeURIComponent(stage)}`)} className="border p-4 rounded text-left hover:bg-blue-50">
+              <span className="text-gray-500">{stage}</span>
+              <strong className="block text-3xl font-bold">{counts[stage]}</strong>
+            </button>
+          ))}
+        </div>
+
+        {user && <ResumeManager uid={user.uid} />}
       </div>
-    )}
-    {deleteTarget && (
-  <ConfirmModal
-    message="Are you sure you want to delete this application?"
-    onConfirm={() => handleDelete(deleteTarget)}
-    onCancel={() => setDeleteTarget(null)}
-  />
-)}
-    
-    {toast && (
-  <Toast
-    message={toast.message}
-    type={toast.type}
-    onClose={() => setToast(null)}
-  />
-)}
-
-    </div>
-  </Layout>
-);
+    </Layout>
+  );
 }
 
 export default Dashboard;

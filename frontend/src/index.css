@@ -5,8 +5,9 @@
 body { margin: 0; min-width: 320px; background: #f4f6f8; }
 button, input, select, textarea { font: inherit; }
 button { cursor: pointer; }
-.app-shell { min-height: 100vh; }
-.workspace { max-width: 1480px; margin: 0 auto; padding: 36px 40px 56px; }
+.app-shell { min-height: 100vh; display: flex; flex-direction: column; }
+.workspace { flex: 1; width: 100%; max-width: 1480px; margin: 0 auto; padding: 36px 40px 56px; }
+.app-footer { width: 100%; border-top: 1px solid #d8e1e5; color: #5c6f7b; padding: 18px 40px; text-align: center; font-size: 13px; }
 .topbar { min-height: 68px; background: #032d42; color: #fff; display: flex; align-items: center; padding: 0 40px; gap: 38px; box-shadow: 0 1px 0 rgb(0 0 0 / 12%); }
 .brand { display: inline-flex; align-items: center; gap: 10px; color: #fff; text-decoration: none; font-weight: 750; letter-spacing: -.025em; font-size: 20px; }
 .brand-mark { width: 26px; height: 26px; display: grid; place-items: center; border-radius: 7px; background: #00a1e0; color: #032d42; font-size: 17px; font-weight: 900; }
@@ -41,6 +42,7 @@ input, select, textarea { border: 1px solid #8e9fa8 !important; border-radius: 5
 :root[data-theme="dark"] { color: #e3f1f7; background: #071d2a; --chart-grid: #284858; --chart-text: #b7d0da; --chart-bar: #75c7f2; }
 :root[data-theme="dark"] body { background: #071d2a; color: #e3f1f7; }
 :root[data-theme="dark"] .workspace { background: radial-gradient(circle at 86% -10%, #123d52 0, transparent 29rem), #071d2a; }
+:root[data-theme="dark"] .app-footer { border-color: #284858; color: #9db7c3; }
 :root[data-theme="dark"] .topbar { background: #02151f; box-shadow: 0 1px 0 #204355; }
 :root[data-theme="dark"] .nav-link:hover, :root[data-theme="dark"] .nav-link.active, :root[data-theme="dark"] .nav-action:hover { background: #1b465c; }
 :root[data-theme="dark"] .page-title, :root[data-theme="dark"] .dashboard-page h1, :root[data-theme="dark"] .dashboard-page h2, :root[data-theme="dark"] .dashboard-page h3, :root[data-theme="dark"] .gmail-page .email-card h2 { color: #f1f8fb; }

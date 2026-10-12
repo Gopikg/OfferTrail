@@ -13,6 +13,8 @@ import OfferCoordinator from "./pages/OfferCoordinator";
 import GetStarted from "./pages/GetStarted";
 import DocumentTitle from "./components/DocumentTitle";
 import Notifications from "./pages/Notifications";
+import UpcomingDeadlines from "./pages/UpcomingDeadlines";
+import ApplicationList from "./pages/ApplicationList";
 
 function titled(title, element) {
   return <DocumentTitle title={title}>{element}</DocumentTitle>;
@@ -44,6 +46,14 @@ const router = createBrowserRouter([
     )),
   },
   {
+    path: "/applications",
+    element: titled("Detailed list of applications", (
+      <ProtectedRoute>
+        <ApplicationList />
+      </ProtectedRoute>
+    )),
+  },
+  {
   path: "/applications/new",
   element: titled("Add application", (
     <ProtectedRoute>
@@ -59,6 +69,14 @@ const router = createBrowserRouter([
     </ProtectedRoute>
   )),
 },
+  {
+    path: "/deadlines",
+    element: titled("Upcoming deadlines", (
+      <ProtectedRoute>
+        <UpcomingDeadlines />
+      </ProtectedRoute>
+    )),
+  },
 {
   path: "/notifications",
   element: titled("Notifications", (

@@ -7,6 +7,9 @@ function Layout({ children, centered = false }) {
       <main className={`workspace${centered ? " workspace-centered" : ""}`}>
         {children}
       </main>
+      <footer className="app-footer">
+        © {new Date().getFullYear()} OfferTrail. All rights reserved.
+      </footer>
     </div>
   );
 }

@@ -38,8 +38,10 @@ function Navbar() {
               <NavLink to="/placement-admin" className="nav-link">Placement admin</NavLink>
             ) : (
               <>
-                <NavLink to="/dashboard" className="nav-link">Applications</NavLink>
+                <NavLink to="/dashboard" className="nav-link">Dashboard</NavLink>
+                <NavLink to="/applications" className="nav-link">Detailed list of applications</NavLink>
                 <NavLink to="/gmail" className="nav-link">Mail updates</NavLink>
+                <NavLink to="/deadlines" className="nav-link">Upcoming deadlines</NavLink>
                 <JobNoticeNotification uid={user.uid} />
                 {!accessLoading && access.isCoordinator && (
                   <NavLink to="/offer-coordinator" className="nav-link">Publish notice</NavLink>
