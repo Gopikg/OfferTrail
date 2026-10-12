@@ -25,8 +25,12 @@ async function authenticatedRequest(user, path, options = {}) {
   return response.json();
 }
 
-export function getGmailMessages(user) {
-  return authenticatedRequest(user, "/gmail/messages");
+export function getGmailMessages(user, pageToken = null) {
+  const query = pageToken
+    ? `?page_token=${encodeURIComponent(pageToken)}`
+    : "";
+
+  return authenticatedRequest(user, `/gmail/messages${query}`);
 }
 
 export function startGmailConnection(user) {

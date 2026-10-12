@@ -8,16 +8,17 @@ from google.auth.exceptions import RefreshError
 
 from firebase_admin import firestore
 from app.services.firebase_admin import verify_firebase_token
-from app.services.gmail_classifier import is_job_email
+from app.services.gmail_classifier import classify_job_email
 from app.services.gmail_extractor import extract_application_data
+from app.services.gmail_message import extract_body
 from app.config import (
     FRONTEND_URL,
+    GMAIL_MAX_MESSAGES,
     GMAIL_OAUTH_SESSION_MINUTES,
     GOOGLE_OAUTH_REDIRECT_URI,
 )
 
 import os
-import base64
 from datetime import datetime, timedelta, timezone
 from urllib.parse import urlencode
 
@@ -304,67 +305,45 @@ async def gmail_callback(
 
 
 # ---------------------------------------------------------------------------
-# Gmail message decoding
+# Gmail message retrieval
 # ---------------------------------------------------------------------------
+def fetch_messages_in_batch(service, messages):
+    """Fetch Gmail messages through Gmail's batch endpoint.
 
-def decode_body(data):
-    if not data:
-        return ""
-
-    try:
-        decoded = base64.urlsafe_b64decode(
-            data.encode("UTF-8")
-        )
-
-        return decoded.decode(
-            "UTF-8",
-            errors="ignore"
-        )
-
-    except Exception as err:
-        print("Failed to decode email body:", err)
-
-        return ""
-
-
-def extract_body(payload):
+    The prior implementation waited for one full-message request before
+    starting the next. A batch retains the full payload needed for extraction,
+    but turns up to 50 sequential network round trips into one request.
+    Individual message failures are skipped so a single inaccessible message
+    does not prevent the user from reviewing the rest of the inbox.
     """
-    Extract plain-text content from a Gmail message payload.
-    Handles both simple and multipart emails.
-    """
+    fetched_messages = {}
+    failed_message_count = 0
 
-    body_data = payload.get(
-        "body",
-        {}
-    ).get("data")
+    def handle_response(_request_id, response, exception):
+        nonlocal failed_message_count
+        if exception is not None:
+            print("Failed to fetch Gmail message in batch:", exception)
+            failed_message_count += 1
+            return
 
-    if body_data:
-        return decode_body(body_data)
+        if response and response.get("id"):
+            fetched_messages[response["id"]] = response
 
-    parts = payload.get("parts", [])
+    # Gmail batches accept at most 100 requests. Chunking keeps this safe if
+    # the configured scan cap is increased.
+    for start in range(0, len(messages), 100):
+        batch = service.new_batch_http_request(callback=handle_response)
+        for message in messages[start:start + 100]:
+            batch.add(
+                service.users().messages().get(
+                    userId="me",
+                    id=message["id"],
+                    format="full",
+                )
+            )
+        batch.execute()
 
-    for part in parts:
-
-        mime_type = part.get("mimeType", "")
-
-        if mime_type == "text/plain":
-
-            body_data = part.get(
-                "body",
-                {}
-            ).get("data")
-
-            if body_data:
-                return decode_body(body_data)
-
-        if part.get("parts"):
-
-            body = extract_body(part)
-
-            if body:
-                return body
-
-    return ""
+    return fetched_messages, failed_message_count
 
 
 # ---------------------------------------------------------------------------
@@ -372,8 +351,9 @@ def extract_body(payload):
 # ---------------------------------------------------------------------------
 
 @router.get("/messages")
-async def get_gmail_messages(
-    authorization: str = Header(None)
+def get_gmail_messages(
+    authorization: str = Header(None),
+    page_token: str | None = None,
 ):
     user = get_user_from_token(authorization)
 
@@ -406,26 +386,29 @@ async def get_gmail_messages(
         )
 
         # Gmail performs the initial server-side filtering here.
-        results = service.users().messages().list(
+        list_request = service.users().messages().list(
             userId="me",
             q=JOB_EMAIL_QUERY,
-            maxResults=50,
-        ).execute()
+            maxResults=GMAIL_MAX_MESSAGES,
+            **({"pageToken": page_token} if page_token else {}),
+        )
+        results = list_request.execute()
 
         messages = results.get(
             "messages",
             []
         )
 
+        message_data_by_id, failed_message_count = fetch_messages_in_batch(service, messages)
         email_data = []
 
+        # Keep Gmail's list ordering, even though batch responses can arrive
+        # in a different order.
         for message in messages:
+            message_data = message_data_by_id.get(message["id"])
 
-            message_data = service.users().messages().get(
-                userId="me",
-                id=message["id"],
-                format="full",
-            ).execute()
+            if not message_data:
+                continue
 
             payload = message_data.get(
                 "payload",
@@ -452,7 +435,8 @@ async def get_gmail_messages(
 
             extracted = extract_application_data(subject, sender, body)
 
-            is_job = is_job_email(subject, sender, body, extracted)
+            classification = classify_job_email(subject, sender, body, extracted)
+            is_job = classification["is_job_email"]
 
             if not is_job:
                 continue
@@ -461,10 +445,14 @@ async def get_gmail_messages(
                 "id": message["id"],
                 "subject": subject,
                 "from": sender,
-                "body": body,
+                # Raw mail is processed server-side and never sent to the UI.
+                "snippet": message_data.get("snippet", ""),
                 "isJobEmail": is_job,
             }
 
+            # Keep the numeric score and its evidence available to the UI for
+            # review. ``confidence`` remains the existing low/medium/high API.
+            extracted.update(classification)
             email["extracted"] = extracted
 
             email_data.append(email)
@@ -482,6 +470,10 @@ async def get_gmail_messages(
         return {
             "count": len(email_data),
             "messages": email_data,
+            "hasMoreMessages": bool(results.get("nextPageToken")),
+            "nextPageToken": results.get("nextPageToken"),
+            "scanLimit": GMAIL_MAX_MESSAGES,
+            "failedMessageCount": failed_message_count,
         }
 
     except RefreshError as err:

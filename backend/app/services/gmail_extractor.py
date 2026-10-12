@@ -9,6 +9,10 @@ GENERIC_COMPANY_WORDS = {
     "application update", "job application",
 }
 
+# Extraction source quality. These scores are intentionally separate from the
+# final message score calculated by gmail_classifier.
+COMPANY_CONFIDENCE_SCORES = {"high": 90, "medium": 65, "low": 35}
+
 
 def clean_value(value):
     """Normalize a name extracted from an email without inventing one."""
@@ -103,4 +107,14 @@ def extract_application_data(subject, sender, body):
     role = extract_role(subject, body)
     stage = extract_stage(subject, body)
     confidence = "high" if company_confidence == "high" and role else company_confidence
-    return {"company": company, "role": role, "stage": stage, "confidence": confidence}
+    return {
+        "company": company,
+        "role": role,
+        "stage": stage,
+        # This is field-level confidence. The route replaces it with the
+        # classifier's combined confidence after assessing the whole email.
+        "confidence": confidence,
+        "company_confidence_score": (
+            COMPANY_CONFIDENCE_SCORES[company_confidence] if company else 0
+        ),
+    }

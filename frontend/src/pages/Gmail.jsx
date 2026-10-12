@@ -21,6 +21,9 @@ function Gmail() {
   const [connecting, setConnecting] = useState(false);
   const [savingEmailId, setSavingEmailId] = useState(null);
   const [toast, setToast] = useState(null);
+  const [scanWarning, setScanWarning] = useState("");
+  const [nextPageToken, setNextPageToken] = useState(null);
+  const [loadingMore, setLoadingMore] = useState(false);
 
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -52,6 +55,20 @@ function Gmail() {
 
         setEmails(gmailResponse.messages || []);
         setApplications(existingApplications || []);
+        setNextPageToken(gmailResponse.nextPageToken || null);
+        if (gmailResponse.failedMessageCount) {
+          setScanWarning(
+            `${gmailResponse.failedMessageCount} email${
+              gmailResponse.failedMessageCount === 1 ? "" : "s"
+            } could not be checked. Refresh to try again.`
+          );
+        } else if (gmailResponse.hasMoreMessages) {
+          setScanWarning(
+            `Only the most recent ${gmailResponse.scanLimit} emails from the last three days were checked.`
+          );
+        } else {
+          setScanWarning("");
+        }
 
       } catch (err) {
         console.error(err);
@@ -95,6 +112,38 @@ function Gmail() {
       });
 
       setConnecting(false);
+    }
+  }
+
+  async function loadMoreEmails() {
+    if (!user || !nextPageToken) return;
+
+    try {
+      setLoadingMore(true);
+      const response = await getGmailMessages(user, nextPageToken);
+
+      setEmails((current) => {
+        const existingIds = new Set(current.map((email) => email.id));
+        return [
+          ...current,
+          ...(response.messages || []).filter((email) => !existingIds.has(email.id)),
+        ];
+      });
+      setNextPageToken(response.nextPageToken || null);
+      if (response.failedMessageCount) {
+        setScanWarning(
+          `${response.failedMessageCount} email${
+            response.failedMessageCount === 1 ? "" : "s"
+          } could not be checked. Refresh to try again.`
+        );
+      } else {
+        setScanWarning("");
+      }
+    } catch (err) {
+      console.error(err);
+      setToast({ message: err.message, type: "error" });
+    } finally {
+      setLoadingMore(false);
     }
   }
 
@@ -377,12 +426,26 @@ function Gmail() {
         <p>Loading emails...</p>
 
       ) : reviewEmails.length === 0 ? (
-        <p className="text-gray-500">
-          No relevant application emails from the last three days.
-        </p>
+        <>
+          <p className="text-gray-500">
+            No relevant application emails from the last three days.
+          </p>
+          {scanWarning && <p className="text-sm text-amber-700 mt-2">{scanWarning}</p>}
+          {nextPageToken && (
+            <button
+              onClick={loadMoreEmails}
+              disabled={loadingMore}
+              className="primary-button disabled:bg-gray-400 mt-4"
+            >
+              {loadingMore ? "Checking more emails..." : "Load more emails"}
+            </button>
+          )}
+        </>
 
       ) : (
         <div className="space-y-4">
+
+          {scanWarning && <p className="text-sm text-amber-700">{scanWarning}</p>}
 
           <section className="review-summary">
             <div>
@@ -459,7 +522,16 @@ function Gmail() {
                         <p>
                           <strong>Detection confidence:</strong>{" "}
                           {email.extracted.confidence || "low"}
+                          {typeof email.extracted.confidence_score === "number" &&
+                            ` (${email.extracted.confidence_score}/100)`}
                         </p>
+
+                        {email.extracted.reasons?.length > 0 && (
+                          <p>
+                            <strong>Why:</strong>{" "}
+                            {email.extracted.reasons.join(", ")}
+                          </p>
+                        )}
 
                       </div>
                     )}
@@ -519,6 +591,16 @@ function Gmail() {
               </div>
             );
             })}
+
+          {nextPageToken && (
+            <button
+              onClick={loadMoreEmails}
+              disabled={loadingMore}
+              className="primary-button disabled:bg-gray-400"
+            >
+              {loadingMore ? "Checking more emails..." : "Load more emails"}
+            </button>
+          )}
         </div>
       )}
 

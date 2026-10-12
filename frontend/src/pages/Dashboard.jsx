@@ -35,6 +35,8 @@ function Dashboard() {
   const [gmailConnected, setGmailConnected] = useState(false);
   // The Gmail workflow remains available at /gmail, but is intentionally not surfaced on the dashboard.
   const showGmailOnDashboard = false;
+  // Keep the insight component and its integration ready for a future release.
+  const showAiInsights = false;
   useEffect(() => {
   if (!toast) return;
 
@@ -680,7 +682,7 @@ return (
               </p>
             )}
 
-             <AIInsight application={application} />
+             {showAiInsights && <AIInsight application={application} />}
 
             <button
               onClick={() =>

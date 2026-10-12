@@ -18,6 +18,7 @@ GOOGLE_OAUTH_REDIRECT_URI = os.getenv(
     "http://localhost:8000/gmail/callback",
 )
 GMAIL_OAUTH_SESSION_MINUTES = int(os.getenv("GMAIL_OAUTH_SESSION_MINUTES", "10"))
+GMAIL_MAX_MESSAGES = int(os.getenv("GMAIL_MAX_MESSAGES", "100"))
 FIREBASE_SERVICE_ACCOUNT_PATH = os.getenv(
     "FIREBASE_SERVICE_ACCOUNT_PATH",
     "firebase-service-account.json",
